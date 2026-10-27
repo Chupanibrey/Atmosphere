@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 7687933261054806243}
   - component: {fileID: 7157966177702710721}
   - component: {fileID: 746484667693946977}
+  - component: {fileID: 8123456789012345671}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -195,6 +196,25 @@ MonoBehaviour:
     obstructionMask:
       serializedVersion: 2
       m_Bits: 4294967295
+--- !u!114 &8123456789012345671
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996875187828747087}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4c8e1b27d9f4a6e8c0b15d3f7a29461, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerCrowbar
+  viewModel: {fileID: -927199367670048503, guid: 793be2d5f72261e41978725c48c90a4c, type: 3}
+  controller: {fileID: 9100000, guid: b7e2c41a90d84f6ab3c15e8d0a492176, type: 2}
+  armsMaterial: {fileID: 2100000, guid: c1d4a8e03b2f4a7c9e6d1058a3b74f20, type: 2}
+  crowbarMaterial: {fileID: 2100000, guid: d2e5b9f14c304b8d0f7e2169b4c85a31, type: 2}
+  localPosition: {x: 0.156, y: -0.221, z: 0.222}
+  localEuler: {x: 0, y: 0, z: 0}
+  modelScale: 1
 --- !u!1 &4659948306774317442
 GameObject:
   m_ObjectHideFlags: 0
