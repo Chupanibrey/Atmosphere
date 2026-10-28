@@ -1,10 +1,129 @@
 using System;
 using UnityEngine;
 
+
+[Serializable]
+public class HeadBobSettings
+{
+    public bool enabled = true;
+
+    [Range(0f, 2f)]
+    [Tooltip("Общая сила покачивания.")]
+    public float amount = 1f;
+
+    [Tooltip("Скорость, ниже которой шаг считается стоянием.")]
+    public float minSpeed = 0.15f;
+
+    [Tooltip("Как быстро покачивание включается и выключается.")]
+    public float blendSpeed = 2.8f;
+
+    [Tooltip("Как быстро камера догоняет целевое смещение.")]
+    public float returnSpeed = 7f;
+
+    [Range(0f, 1f)]
+    [Tooltip("Сила дыхания на месте.")]
+    public float idleAmount = 0.28f;
+
+    [Tooltip("Частота дыхания на месте, циклов в секунду.")]
+    public float idleFrequency = 0.22f;
+
+    [Tooltip("Провал камеры при приземлении, в метрах.")]
+    public float landingDip = 0.04f;
+
+    [Tooltip("Минимальная скорость падения для провала камеры.")]
+    public float landingMinVelocity = 2.5f;
+
+    [Tooltip("Скорость падения, при которой провал максимальный.")]
+    public float landingMaxVelocity = 7f;
+
+    [Tooltip("Скорость возврата камеры после приземления.")]
+    public float landingRecover = 1.35f;
+
+    public HeadBobProfile walk = new()
+    {
+        stepsPerSecond = 1.8f,
+        vertical = 0.035f,
+        horizontal = 0.02f,
+        forward = 0.008f,
+        pitch = 0.45f,
+        yaw = 0.15f,
+        roll = 0.85f
+    };
+
+    public HeadBobProfile sprint = new()
+    {
+        stepsPerSecond = 3f,
+        vertical = 0.05f,
+        horizontal = 0.028f,
+        forward = 0.014f,
+        pitch = 0.65f,
+        yaw = 0.2f,
+        roll = 1.15f
+    };
+
+    public HeadBobProfile crouch = new()
+    {
+        stepsPerSecond = 1.15f,
+        vertical = 0.018f,
+        horizontal = 0.014f,
+        forward = 0.006f,
+        pitch = 0.25f,
+        yaw = 0.12f,
+        roll = 0.4f
+    };
+
+    public HeadBobProfile climb = new()
+    {
+        stepsPerSecond = 0.8f,
+        vertical = 0.022f,
+        horizontal = 0.006f,
+        forward = 0.004f,
+        pitch = 0.2f,
+        yaw = 0.06f,
+        roll = 0.2f
+    };
+
+    public HeadBobProfile idle = new()
+    {
+        stepsPerSecond = 1.8f,
+        vertical = 0.005f,
+        horizontal = 0.0015f,
+        forward = 0.0005f,
+        pitch = 0.06f,
+        yaw = 0.03f,
+        roll = 0.04f
+    };
+}
+
+[Serializable]
+public class HeadBobProfile
+{
+    [Tooltip("Каденс: шагов в секунду на полной скорости.")]
+    public float stepsPerSecond = 1.8f;
+
+    [Tooltip("Смещение вверх-вниз, м/с²..")]
+    public float vertical = 0.03f;
+
+    [Tooltip("Смещение влево-вправо, м/с²..")]
+    public float horizontal = 0.02f;
+
+    [Tooltip("Смещение вперёд-назад, м/с²..")]
+    public float forward = 0.008f;
+
+    [Tooltip("Наклон вверх-вниз, градусы.")]
+    public float pitch = 0.4f;
+
+    [Tooltip("Поворот влево-вправо, градусы.")]
+    public float yaw = 0.15f;
+
+    [Tooltip("Крен (наклон головы к плечу), градусы.")]
+    public float roll = 0.5f;
+}
+
 /// <summary>
 /// Покачивание камеры.
 /// </summary>
-[DefaultExecutionOrder(100)] // после PlayerController
+[DefaultExecutionOrder(300)] // после PlayerController
 [RequireComponent(typeof(PlayerController))]
 public class PlayerHeadBob : MonoBehaviour
 {
@@ -107,7 +226,7 @@ public class PlayerHeadBob : MonoBehaviour
 
     static Vector3 EvaluateOffset(HeadBobProfile profile, float phase)
     {
-        float vertical = Mathf.Sin(phase * 2f) * profile.vertical; // два шага на цикл: левая и правая
+        float vertical = Mathf.Sin(phase * 2f) * profile.vertical; // два шага на цикл
         float horizontal = Mathf.Sin(phase) * profile.horizontal;
         float forward = -Mathf.Abs(Mathf.Sin(phase)) * profile.forward;
         return new Vector3(horizontal, vertical, forward);
@@ -120,122 +239,4 @@ public class PlayerHeadBob : MonoBehaviour
         float roll = -Mathf.Sin(phase) * profile.roll;
         return new Vector3(pitch, yaw, roll);
     }
-}
-
-[Serializable]
-public class HeadBobSettings
-{
-    public bool enabled = true;
-
-    [Range(0f, 2f)]
-    [Tooltip("Общая сила покачивания.")]
-    public float amount = 1f;
-
-    [Tooltip("Скорость, ниже которой шаг считается стоянием.")]
-    public float minSpeed = 0.4f;
-
-    [Tooltip("Как быстро покачивание включается и выключается.")]
-    public float blendSpeed = 2.8f;
-
-    [Tooltip("Как быстро камера догоняет целевое смещение.")]
-    public float returnSpeed = 7f;
-
-    [Range(0f, 1f)]
-    [Tooltip("Сила дыхания на месте.")]
-    public float idleAmount = 0.28f;
-
-    [Tooltip("Частота дыхания на месте, циклов в секунду.")]
-    public float idleFrequency = 0.22f;
-
-    [Tooltip("Провал камеры при приземлении, в метрах.")]
-    public float landingDip = 0.055f;
-
-    [Tooltip("Минимальная скорость падения для провала камеры.")]
-    public float landingMinVelocity = 3f;
-
-    [Tooltip("Скорость падения, при которой провал максимальный.")]
-    public float landingMaxVelocity = 14f;
-
-    [Tooltip("Скорость возврата камеры после приземления.")]
-    public float landingRecover = 1.35f;
-
-    public HeadBobProfile walk = new()
-    {
-        stepsPerSecond = 1.8f,
-        vertical = 0.035f,
-        horizontal = 0.02f,
-        forward = 0.008f,
-        pitch = 0.45f,
-        yaw = 0.15f,
-        roll = 0.85f
-    };
-
-    public HeadBobProfile sprint = new()
-    {
-        stepsPerSecond = 2.65f,
-        vertical = 0.05f,
-        horizontal = 0.028f,
-        forward = 0.014f,
-        pitch = 0.65f,
-        yaw = 0.2f,
-        roll = 1.15f
-    };
-
-    public HeadBobProfile crouch = new()
-    {
-        stepsPerSecond = 1.25f,
-        vertical = 0.018f,
-        horizontal = 0.014f,
-        forward = 0.006f,
-        pitch = 0.25f,
-        yaw = 0.12f,
-        roll = 0.4f
-    };
-
-    public HeadBobProfile climb = new()
-    {
-        stepsPerSecond = 1.2f,
-        vertical = 0.022f,
-        horizontal = 0.006f,
-        forward = 0.004f,
-        pitch = 0.2f,
-        yaw = 0.06f,
-        roll = 0.2f
-    };
-
-    public HeadBobProfile idle = new()
-    {
-        stepsPerSecond = 1.8f,
-        vertical = 0.005f,
-        horizontal = 0.0015f,
-        forward = 0.0005f,
-        pitch = 0.06f,
-        yaw = 0.03f,
-        roll = 0.04f
-    };
-}
-
-[Serializable]
-public class HeadBobProfile
-{
-    [Tooltip("Каденс: шагов в секунду на полной скорости этой походки.")]
-    public float stepsPerSecond = 1.8f;
-
-    [Tooltip("Смещение вверх-вниз, метры.")]
-    public float vertical = 0.03f;
-
-    [Tooltip("Смещение влево-вправо, метры.")]
-    public float horizontal = 0.02f;
-
-    [Tooltip("Смещение вперёд-назад, метры.")]
-    public float forward = 0.008f;
-
-    [Tooltip("Наклон вверх-вниз, градусы.")]
-    public float pitch = 0.4f;
-
-    [Tooltip("Поворот влево-вправо, градусы.")]
-    public float yaw = 0.15f;
-
-    [Tooltip("Крен (наклон головы к плечу), градусы.")]
-    public float roll = 0.5f;
 }

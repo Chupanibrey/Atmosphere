@@ -2,6 +2,30 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[Serializable]
+public class PlayerLeanSettings
+{
+    public bool enabled = true;
+
+    [Tooltip("Насколько камера уходит в сторону, м/с².")]
+    public float distance = 0.28f;
+
+    [Tooltip("Небольшое опускание головы при наклоне.")]
+    public float height = -0.04f;
+
+    [Tooltip("Крен камеры, градусы.")]
+    public float roll = 6f;
+
+    [Tooltip("Как быстро выходим и возвращаемся.")]
+    public float lerpSpeed = 10f;
+
+    [Tooltip("Запас вокруг near clip, м/с².")]
+    public float wallPadding = 0.08f;
+
+    [Tooltip("Слои стен.")]
+    public LayerMask obstructionMask = ~0;
+}
+
 /// <summary>
 /// Выглядывание из-за угла: Q влево, E вправо.
 /// </summary>
@@ -84,6 +108,56 @@ public class PlayerLean : MonoBehaviour
         _player.SetCameraLean(_offset, _euler);
     }
 
+    public void KeepCameraInsideWalls()
+    {
+        TryCacheCamera();
+        if (_camera == null || _player == null)
+            return;
+
+        Transform cam = _camera.transform;
+        bool prevBackfaces = Physics.queriesHitBackfaces;
+        Physics.queriesHitBackfaces = true;
+        try
+        {
+            if (CornersClear(cam.position, cam.rotation))
+                return;
+
+            // Откатываем камеру назад вдоль взгляда, пока near clip не выйдет из стены.
+            Vector3 origin = cam.position;
+            Vector3 back = -cam.forward;
+            float lo = 0f;
+            float hi = 0.4f;
+            for (int i = 0; i < FitIterations; i++)
+            {
+                float mid = (lo + hi) * 0.5f;
+                if (CornersClear(origin + back * mid, cam.rotation))
+                    hi = mid;
+                else
+                    lo = mid;
+            }
+
+            cam.position = origin + back * hi;
+        }
+        finally
+        {
+            Physics.queriesHitBackfaces = prevBackfaces;
+        }
+    }
+
+    bool CornersClear(Vector3 cameraPos, Quaternion rotation)
+    {
+        Vector3 safe = _player.transform.position + Vector3.up * (_player.CameraHeightY * 0.5f);
+        FillNearCorners(cameraPos, rotation, 0.02f);
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (SegmentBlocked(safe, _nearCorners[i]))
+                return false;
+        }
+
+        return true;
+    }
+
     float ReadAxis()
     {
         if (_player.IsClimbing || _leanAction == null)
@@ -129,7 +203,7 @@ public class PlayerLean : MonoBehaviour
         Vector3 safe = CameraWorldPoint(0f, 0f);
         Vector3 cameraPos = CameraWorldPoint(signedDistance, settings.height * Mathf.Abs(axis));
         Quaternion rotation = Quaternion.Euler(_player.Pitch, _player.transform.eulerAngles.y, -axis * settings.roll);
-        FillNearCorners(cameraPos, rotation);
+        FillNearCorners(cameraPos, rotation, settings.wallPadding);
 
         if (SegmentBlocked(safe, cameraPos))
             return false;
@@ -151,14 +225,13 @@ public class PlayerLean : MonoBehaviour
         return _player.transform.TransformPoint(local);
     }
 
-    void FillNearCorners(Vector3 cameraPos, Quaternion rotation)
+    void FillNearCorners(Vector3 cameraPos, Quaternion rotation, float pad)
     {
-        float near = _camera != null ? _camera.nearClipPlane : 0.3f;
+        float near = _camera != null ? _camera.nearClipPlane : 0.05f;
         float fov = _camera != null ? _camera.fieldOfView : 60f;
         float aspect = _camera != null ? _camera.aspect : 16f / 9f;
         float halfH = near * Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad);
         float halfW = halfH * aspect;
-        float pad = settings.wallPadding;
 
         _nearCorners[0] = cameraPos + rotation * new Vector3(-halfW - pad, -halfH - pad, near + pad);
         _nearCorners[1] = cameraPos + rotation * new Vector3(halfW + pad, -halfH - pad, near + pad);
@@ -221,28 +294,4 @@ public class PlayerLean : MonoBehaviour
             .With("Positive", "<Keyboard>/e");
         _ownsAction = true;
     }
-}
-
-[Serializable]
-public class PlayerLeanSettings
-{
-    public bool enabled = true;
-
-    [Tooltip("Насколько камера уходит в сторону, метры.")]
-    public float distance = 0.45f;
-
-    [Tooltip("Небольшое опускание головы при наклоне.")]
-    public float height = -0.04f;
-
-    [Tooltip("Крен камеры, градусы.")]
-    public float roll = 8f;
-
-    [Tooltip("Как быстро выходим и возвращаемся.")]
-    public float lerpSpeed = 10f;
-
-    [Tooltip("Запас вокруг near clip, метры. Если снова видно внутренности стены — увеличьте.")]
-    public float wallPadding = 0.08f;
-
-    [Tooltip("Слои стен. Для Prototype Map оставьте Everything.")]
-    public LayerMask obstructionMask = ~0;
 }

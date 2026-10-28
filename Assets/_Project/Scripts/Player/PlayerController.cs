@@ -10,6 +10,73 @@ public enum PlayerGait
     Climb
 }
 
+[Serializable]
+public class PlayerLookSettings
+{
+    public Transform cameraPivot;
+    public float mouseSensitivity = 0.12f;
+    public float minPitch = -85f;
+    public float maxPitch = 85f;
+    public bool lockCursorOnStart = true;
+}
+
+[Serializable]
+public class PlayerMoveSettings
+{
+    [Tooltip("Обычный шаг, м/с.")]
+    public float walkSpeed = 1.5f;
+    [Tooltip("Бег, м/с.")]
+    public float sprintSpeed = 4.5f;
+    [Tooltip("Шаг в приседе, м/с.")]
+    public float crouchSpeed = 0.75f;
+    [Tooltip("Разгон, м/с².")]
+    public float acceleration = 16f;
+    [Tooltip("Торможение на земле, м/с².")]
+    public float deceleration = 40f;
+    [Tooltip("Доля управления в воздухе, 0–1.")]
+    public float airControl = 0.15f;
+}
+
+[Serializable]
+public class PlayerJumpSettings
+{
+    [Tooltip("Высота прыжка, м/с².")]
+    public float height = 0.5f;
+    [Tooltip("Ускорение свободного падения, м/с².")]
+    public float gravity = -9.81f;
+    public float groundedStick = -8f;
+    public float coyoteTime = 0.08f;
+    public float bufferTime = 0.08f;
+    public LayerMask groundMask = ~0;
+}
+
+[Serializable]
+public class PlayerCrouchSettings
+{
+    public bool toggle;
+    [Tooltip("Рост стоя м/с².")]
+    public float standingHeight = 1.8f;
+    [Tooltip("Высота капсулы в приседе, м/с².")]
+    public float height = 1.1f;
+    [Tooltip("Доля роста до глаз м/с².")]
+    public float eyeHeightRatio = 0.97f;
+    [Tooltip("Высота камеры от ног в полный рост, м/с².")]
+    public float standingCameraY = 1.75f;
+    [Tooltip("Высота камеры от ног в приседе, м/с².")]
+    public float cameraY = 1.07f;
+    public float lerpSpeed = 12f;
+}
+
+[Serializable]
+public class PlayerClimbSettings
+{
+    [Tooltip("Скорость по лестнице, м/с.")]
+    public float speed = 1.2f;
+    [Tooltip("Смещение вбок на лестнице, м/с.")]
+    public float strafeSpeed = 0.6f;
+    public float attachDot = 0.25f;
+}
+
 /// <summary>
 /// Движение FPS-персонажа: ходьба, бег, присед, прыжок, лестницы, обзор.
 /// </summary>
@@ -28,8 +95,10 @@ public class PlayerController : MonoBehaviour
     [SerializeField] PlayerJumpSettings jump = new();
     [SerializeField] PlayerCrouchSettings crouch = new();
     [SerializeField] PlayerClimbSettings climb = new();
+    [SerializeField] Transform bodyVisual;
 
     CharacterController _controller;
+    PlayerLean _lean;
     InputAction _moveAction;
     InputAction _lookAction;
     InputAction _jumpAction;
@@ -121,6 +190,7 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         _controller = GetComponent<CharacterController>();
+        TryGetComponent(out _lean);
         CacheActions();
 
         if (TryGetComponent(out CapsuleCollider capsuleCollider))
@@ -133,6 +203,14 @@ public class PlayerController : MonoBehaviour
                 look.cameraPivot = cam.transform;
         }
 
+        if (bodyVisual == null)
+        {
+            Transform found = transform.Find("Body");
+            if (found != null)
+                bodyVisual = found;
+        }
+
+        crouch.standingHeight = Mathf.Max(_controller.height, _controller.radius * 2f + 0.05f);
         _targetHeight = crouch.standingHeight;
         ApplyCapsuleHeight(crouch.standingHeight);
         SnapBottomToGround();
@@ -141,8 +219,23 @@ public class PlayerController : MonoBehaviour
         if (HasCamera)
         {
             _cameraRestLocalPos = look.cameraPivot.localPosition;
-            _cameraHeightY = crouch.standingCameraY;
+            _cameraHeightY = EyeHeight(crouch.standingHeight);
         }
+    }
+
+    void OnValidate()
+    {
+        var cc = GetComponent<CharacterController>();
+        if (cc == null)
+            return;
+
+        float h = Mathf.Max(crouch.standingHeight, cc.radius * 2f + 0.05f);
+        crouch.standingHeight = h;
+        cc.height = h;
+        cc.center = new Vector3(0f, h * 0.5f, 0f);
+        crouch.standingCameraY = EyeHeight(h);
+        crouch.cameraY = EyeHeight(crouch.height);
+        SyncBodyVisual(cc, h);
     }
 
     void OnEnable()
@@ -201,6 +294,8 @@ public class PlayerController : MonoBehaviour
             _pitch + _bobEuler.x + _leanEuler.x,
             _bobEuler.y + _leanEuler.y,
             _bobEuler.z + _leanEuler.z);
+
+        _lean?.KeepCameraInsideWalls();
     }
 
     void OnTriggerEnter(Collider other)
@@ -289,7 +384,10 @@ public class PlayerController : MonoBehaviour
         Vector3 wishDir = GetWorldMoveDirection(moveInput);
         float control = _grounded ? 1f : move.airControl;
         Vector3 targetHorizontal = wishDir * targetSpeed;
-        _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, targetHorizontal, move.acceleration * control * dt);
+        Vector3 delta = _horizontalVelocity - targetHorizontal;
+        bool slowing = Vector3.Dot(delta, _horizontalVelocity) > 0f;
+        float rate = slowing ? move.deceleration : move.acceleration;
+        _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, targetHorizontal, rate * control * dt);
 
         if (_jumpBufferTimer > 0f && _coyoteTimer > 0f && !_isCrouching)
         {
@@ -308,7 +406,8 @@ public class PlayerController : MonoBehaviour
         _velocity.z = _horizontalVelocity.z;
 
         CollisionFlags flags = _controller.Move(_velocity * dt);
-        _grounded = (flags & CollisionFlags.Below) != 0 || ProbeGround(); // isGrounded на Plane часто врёт
+        bool rising = _velocity.y > 0.1f;
+        _grounded = !rising && ((flags & CollisionFlags.Below) != 0 || ProbeGround());
 
         if (!wasGrounded && _grounded)
             _landingImpactSpeed = fallSpeed;
@@ -393,7 +492,7 @@ public class PlayerController : MonoBehaviour
         if (!Mathf.Approximately(nextHeight, _controller.height))
             ApplyCapsuleHeight(nextHeight);
 
-        float targetY = _isCrouching ? crouch.cameraY : crouch.standingCameraY;
+        float targetY = EyeHeight(_isCrouching ? crouch.height : crouch.standingHeight);
         _cameraHeightY = Mathf.Lerp(_cameraHeightY, targetY, blend);
     }
 
@@ -488,13 +587,31 @@ public class PlayerController : MonoBehaviour
             QueryTriggerInteraction.Ignore);
     }
 
+    float EyeHeight(float bodyHeight)
+    {
+        float ratio = crouch.eyeHeightRatio > 0.1f ? crouch.eyeHeightRatio : 0.91f;
+        return bodyHeight * ratio;
+    }
+
     void ApplyCapsuleHeight(float height)
     {
         float clamped = Mathf.Max(height, _controller.radius * 2f + 0.05f);
         _controller.height = clamped;
-        // Pivot у стандартной Capsule в центре: сдвигаем center, ноги на уровне земли.
-        float centerY = (clamped - crouch.standingHeight) * 0.5f;
-        _controller.center = new Vector3(0f, centerY, 0f);
+        _controller.center = new Vector3(0f, clamped * 0.5f, 0f);
+        SyncBodyVisual(_controller, clamped);
+    }
+
+    void SyncBodyVisual(CharacterController cc, float height)
+    {
+        if (bodyVisual == null || bodyVisual == transform)
+            return;
+
+        Vector3 pos = bodyVisual.localPosition;
+        pos.y = height * 0.5f;
+        bodyVisual.localPosition = pos;
+
+        float diameter = cc.radius * 2f;
+        bodyVisual.localScale = new Vector3(diameter, height * 0.5f, diameter);
     }
 
     static void SetCursorLocked(bool locked)
@@ -502,54 +619,4 @@ public class PlayerController : MonoBehaviour
         Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
         Cursor.visible = !locked;
     }
-}
-
-[Serializable]
-public class PlayerLookSettings
-{
-    public Transform cameraPivot;
-    public float mouseSensitivity = 0.12f;
-    public float minPitch = -85f;
-    public float maxPitch = 85f;
-    public bool lockCursorOnStart = true;
-}
-
-[Serializable]
-public class PlayerMoveSettings
-{
-    public float walkSpeed = 8f;
-    public float sprintSpeed = 16f;
-    public float crouchSpeed = 4f;
-    public float acceleration = 40f;
-    public float airControl = 0.35f;
-}
-
-[Serializable]
-public class PlayerJumpSettings
-{
-    public float height = 2f;
-    public float gravity = -30f;
-    public float groundedStick = -8f;
-    public float coyoteTime = 0.12f;
-    public float bufferTime = 0.12f;
-    public LayerMask groundMask = ~0;
-}
-
-[Serializable]
-public class PlayerCrouchSettings
-{
-    public bool toggle;
-    public float standingHeight = 2f;
-    public float height = 1f;
-    public float standingCameraY = 0.7f;
-    public float cameraY = 0.25f;
-    public float lerpSpeed = 12f;
-}
-
-[Serializable]
-public class PlayerClimbSettings
-{
-    public float speed = 4f;
-    public float strafeSpeed = 1.6f;
-    public float attachDot = 0.25f;
 }
