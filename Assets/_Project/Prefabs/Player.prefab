@@ -14,6 +14,8 @@ GameObject:
   - component: {fileID: 7157966177702710721}
   - component: {fileID: 746484667693946977}
   - component: {fileID: 8123456789012345671}
+  - component: {fileID: 4435024417137638142}
+  - component: {fileID: 7795924191595975877}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -215,6 +217,136 @@ MonoBehaviour:
   localPosition: {x: 0.156, y: -0.221, z: 0.222}
   localEuler: {x: 0, y: 0, z: 0}
   modelScale: 1
+--- !u!82 &4435024417137638142
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996875187828747087}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 0}
+  m_PlayOnAwake: 1
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 0
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!114 &7795924191595975877
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996875187828747087}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f670e2630bf9cb64ba9c8e01abff7e23, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFootsteps
+  stepClips:
+  - {fileID: 8300000, guid: 8480d16e953fa1b4ca603fc097e54be1, type: 3}
+  - {fileID: 8300000, guid: f9efc7ad584b2ca41bdfaf1c6dfac41c, type: 3}
+  - {fileID: 8300000, guid: c762569275028b74c8d914806ba82773, type: 3}
+  - {fileID: 8300000, guid: f128ebb2676987b4c914514a250dcfd1, type: 3}
+  - {fileID: 8300000, guid: 731401a905f74ad4ca81acf0ad38a36e, type: 3}
+  - {fileID: 8300000, guid: 350fe974e3946eb42b27c68148f62501, type: 3}
+  - {fileID: 8300000, guid: 79af8fc9a37e6124bad5d91b7a46ef2f, type: 3}
+  - {fileID: 8300000, guid: 5cc417048de2de64eadaf791f1202c50, type: 3}
+  - {fileID: 8300000, guid: 7b22f9505a9e29041b313f3eb1c8a1c2, type: 3}
+  - {fileID: 8300000, guid: e38e836d0e9280c489ce3deb3b1f4419, type: 3}
+  - {fileID: 8300000, guid: c866e7fe87905404b9d684d74547bd6a, type: 3}
+  - {fileID: 8300000, guid: 01fefa5163595924788b4cb76d2e472a, type: 3}
+  - {fileID: 8300000, guid: a99401e14847de348a01609deae7df00, type: 3}
+  - {fileID: 8300000, guid: 059bcd37f676a9641b70c3975a122c62, type: 3}
+  landClips: []
+  walkVolume: 0.6
+  sprintVolumeMul: 1.35
+  crouchVolumeMul: 0.45
+  volumeJitter: 0.15
+  pitchRange: {x: 0.92, y: 1.08}
 --- !u!1 &4659948306774317442
 GameObject:
   m_ObjectHideFlags: 0
