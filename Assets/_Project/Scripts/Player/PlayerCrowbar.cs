@@ -2,12 +2,22 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Руки с монтировкой на камере. H достаёт и убирает, атака проигрывает удар.
+/// Аниация рук с монтировкой: достать, покой, случайный удар, убрать.
 /// </summary>
+[DefaultExecutionOrder(300)]
 [RequireComponent(typeof(PlayerController))]
 public class PlayerCrowbar : MonoBehaviour
 {
-    const string SwingState = "Attack";
+    static readonly int Show = Animator.StringToHash("Show");
+    static readonly int Idle = Animator.StringToHash("Idle");
+    static readonly int Hide = Animator.StringToHash("Hide");
+    static readonly int[] Attacks =
+    {
+        Animator.StringToHash("Attack 1"),
+        Animator.StringToHash("Attack 2"),
+        Animator.StringToHash("Attack 3"),
+        Animator.StringToHash("Attack 4")
+    };
 
     [SerializeField] GameObject viewModel;
     [SerializeField] RuntimeAnimatorController controller;
@@ -19,77 +29,159 @@ public class PlayerCrowbar : MonoBehaviour
 
     PlayerController _player;
     InputAction _drawAction;
-    InputAction _attackAction;
+    InputAction _meleeAction;
     GameObject _instance;
     Animator _animator;
-    bool _drawn;
-    bool _swingQueued;
+    int _queuedState;
+    int _lastAttack = -1;
+    bool _holstering;
+    readonly ViewModelObstruction _walls = new ViewModelObstruction();
 
     void Awake()
     {
         _player = GetComponent<PlayerController>();
         var actions = InputSystem.actions;
         _drawAction = actions != null ? actions.FindAction("Player/DrawWeapon", false) : null;
-        _attackAction = actions != null ? actions.FindAction("Player/Attack", false) : null;
+        _meleeAction = actions != null ? actions.FindAction("Player/Melee", false) : null;
     }
 
     void OnEnable()
     {
         _drawAction?.Enable();
-        _attackAction?.Enable();
+        _meleeAction?.Enable();
     }
 
     void OnDisable()
     {
         _drawAction?.Disable();
-        _attackAction?.Disable();
+        _meleeAction?.Disable();
     }
 
     void Update()
     {
-        if (WasDrawPressed())
-            SetDrawn(!_drawn);
+        bool drawn = _instance != null && _instance.activeSelf;
 
-        if (_drawn && _attackAction != null && _attackAction.WasPressedThisFrame())
-            PlaySwing();
+        if (!drawn)
+        {
+            if (WasPressed(_drawAction))
+                Draw();
+            return;
+        }
+
+        if (_holstering && Finished(Hide))
+        {
+            _instance.SetActive(false);
+            _holstering = false;
+            return;
+        }
+
+        if (WasPressed(_drawAction) && !_holstering && (IsCurrent(Idle) || IsCurrent(Show) || IsAttack()))
+            Play(Hide);
+
+        if (MeleeHeld() && IsCurrent(Idle))
+            Play(NextAttack());
     }
 
     void LateUpdate()
     {
-        // Play в тот же кадр, когда объект только включился, Animator ещё не инициализирован.
-        if (!_swingQueued || _animator == null || !_animator.isInitialized)
-            return;
-
-        _swingQueued = false;
-        _animator.Play(SwingState, 0, 0f);
-        _animator.Update(0f);
-    }
-
-    bool WasDrawPressed()
-    {
-        if (_drawAction != null)
-            return _drawAction.WasPressedThisFrame();
-
-        return Keyboard.current != null && Keyboard.current.hKey.wasPressedThisFrame;
-    }
-
-    void SetDrawn(bool drawn)
-    {
-        _drawn = drawn;
-
-        if (!drawn)
+        if (_queuedState != 0 && _animator != null && _animator.isInitialized)
         {
-            if (_instance != null)
-                _instance.SetActive(false);
+            int state = _queuedState;
+            _queuedState = 0;
+            _animator.Play(state, 0, 0f);
+            _animator.Update(0f);
+        }
+
+        TuckArmsFromWalls();
+    }
+
+    void TuckArmsFromWalls()
+    {
+        if (_instance == null || !_instance.activeSelf)
+        {
+            _walls.ResetMotion();
             return;
         }
 
+        Transform cam = _instance.transform.parent;
+        if (cam == null)
+            return;
+
+        _walls.Apply(_instance.transform, cam, transform, localPosition, localEuler, Time.deltaTime);
+    }
+
+    void Draw()
+    {
         EnsureInstance();
         if (_instance == null)
             return;
 
+        _holstering = false;
         _instance.SetActive(true);
-        PlaySwing();
+        Play(Show);
+    }
+
+    void Play(int state)
+    {
+        if (_animator == null)
+            return;
+
+        _holstering = state == Hide;
+        _queuedState = state;
+    }
+
+    int NextAttack()
+    {
+        int index = Random.Range(0, Attacks.Length);
+        if (Attacks.Length > 1 && index == _lastAttack)
+            index = (index + 1) % Attacks.Length;
+
+        _lastAttack = index;
+        return Attacks[index];
+    }
+
+    bool IsCurrent(int state)
+    {
+        if (_animator == null || !_animator.isInitialized || _animator.IsInTransition(0))
+            return false;
+
+        return _animator.GetCurrentAnimatorStateInfo(0).shortNameHash == state;
+    }
+
+    bool IsAttack()
+    {
+        if (_animator == null || !_animator.isInitialized || _animator.IsInTransition(0))
+            return false;
+
+        int hash = _animator.GetCurrentAnimatorStateInfo(0).shortNameHash;
+        for (int i = 0; i < Attacks.Length; i++)
+        {
+            if (hash == Attacks[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    bool Finished(int state)
+    {
+        if (!IsCurrent(state))
+            return false;
+
+        return _animator.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1f;
+    }
+
+    bool MeleeHeld()
+    {
+        if (_meleeAction != null)
+            return _meleeAction.IsPressed();
+
+        return Mouse.current != null && Mouse.current.leftButton.isPressed;
+    }
+
+    static bool WasPressed(InputAction action)
+    {
+        return action != null && action.WasPressedThisFrame();
     }
 
     void EnsureInstance()
@@ -122,6 +214,7 @@ public class PlayerCrowbar : MonoBehaviour
                 _animator.runtimeAnimatorController = controller;
             _animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             _animator.applyRootMotion = false;
+            _animator.keepAnimatorStateOnDisable = false;
         }
 
         foreach (var skin in _instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
@@ -150,13 +243,5 @@ public class PlayerCrowbar : MonoBehaviour
 
             renderer.sharedMaterials = mats;
         }
-    }
-
-    void PlaySwing()
-    {
-        if (_animator == null || _animator.runtimeAnimatorController == null)
-            return;
-
-        _swingQueued = true;
     }
 }
