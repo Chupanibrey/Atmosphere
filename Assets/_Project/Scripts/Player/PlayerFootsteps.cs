@@ -28,6 +28,8 @@ public class PlayerFootsteps : MonoBehaviour
     int _lastStep = -1;
     int _lastLand = -1;
     float _lastY;
+    float _airStartY;
+    bool _wasGrounded = true;
     float _blockBobStep;
     readonly RaycastHit[] _hits = new RaycastHit[8];
 
@@ -52,20 +54,24 @@ public class PlayerFootsteps : MonoBehaviour
         }
 
         _lastY = transform.position.y;
+        _airStartY = _lastY;
     }
 
     void LateUpdate()
     {
         float y = transform.position.y;
         float rise = y - _lastY;
-        _lastY = y;
+        bool grounded = _player.IsGrounded && !_player.IsClimbing;
 
-        // Ступень: капсула поднимается целиком за кадр. Обычный шаг камеры тут не совпадает с геометрией.
-        if (_player.IsGrounded && !_player.IsClimbing && rise >= 0.1f && rise <= 0.45f)
-        {
-            _blockBobStep = Time.time + 0.22f;
-            PlayStep();
-        }
+        if (_wasGrounded && !grounded)
+            _airStartY = _lastY;
+
+        // Вверх ступень забирается за один кадр. Вниз капсула срывается и касается пола уже в OnLanded.
+        if (grounded && rise >= 0.1f && rise <= 0.45f)
+            PlayStair();
+
+        _wasGrounded = grounded;
+        _lastY = y;
     }
 
     void OnEnable()
@@ -114,10 +120,23 @@ public class PlayerFootsteps : MonoBehaviour
         Play(Resolve().Steps, ref _lastStep, walkVolume * gaitMul);
     }
 
+    void PlayStair()
+    {
+        _blockBobStep = Time.time + 0.22f;
+        PlayStep();
+    }
+
     void OnLanded(float fallSpeed)
     {
         if (_player.IsClimbing)
             return;
+
+        float drop = _airStartY - transform.position.y;
+        if (drop >= 0.1f && drop <= 0.5f)
+        {
+            PlayStair();
+            return;
+        }
 
         var settings = _bob != null ? _bob.Settings : null;
         float min = settings != null ? settings.landingMinVelocity : 2.5f;
