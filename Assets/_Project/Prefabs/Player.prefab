@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 7157966177702710721}
   - component: {fileID: 746484667693946977}
   - component: {fileID: 8123456789012345671}
+  - component: {fileID: 5748392016574839201}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -82,9 +83,9 @@ MonoBehaviour:
     maxPitch: 85
     lockCursorOnStart: 1
   move:
-    walkSpeed: 1.5
-    sprintSpeed: 4.5
-    crouchSpeed: 0.75
+    walkSpeed: 2.5
+    sprintSpeed: 5.5
+    crouchSpeed: 1.75
     acceleration: 16
     deceleration: 40
     airControl: 0.15
@@ -215,6 +216,46 @@ MonoBehaviour:
   localPosition: {x: 0.156, y: -0.221, z: 0.222}
   localEuler: {x: 0, y: 0, z: 0}
   modelScale: 1
+--- !u!114 &5748392016574839201
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996875187828747087}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8f3c2a91e4d47a6b0c15d8e7a392f14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFootsteps
+  defaultClips:
+    names: []
+    steps:
+    - {fileID: 8300000, guid: 8480d16e953fa1b4ca603fc097e54be1, type: 3}
+    - {fileID: 8300000, guid: f9efc7ad584b2ca41bdfaf1c6dfac41c, type: 3}
+    - {fileID: 8300000, guid: c762569275028b74c8d914806ba82773, type: 3}
+    - {fileID: 8300000, guid: f128ebb2676987b4c914514a250dcfd1, type: 3}
+    - {fileID: 8300000, guid: 731401a905f74ad4ca81acf0ad38a36e, type: 3}
+    - {fileID: 8300000, guid: 350fe974e3946eb42b27c68148f62501, type: 3}
+    - {fileID: 8300000, guid: 79af8fc9a37e6124bad5d91b7a46ef2f, type: 3}
+    - {fileID: 8300000, guid: 5cc417048de2de64eadaf791f1202c50, type: 3}
+    - {fileID: 8300000, guid: 7b22f9505a9e29041b313f3eb1c8a1c2, type: 3}
+    - {fileID: 8300000, guid: e38e836d0e9280c489ce3deb3b1f4419, type: 3}
+    - {fileID: 8300000, guid: c866e7fe87905404b9d684d74547bd6a, type: 3}
+    - {fileID: 8300000, guid: 01fefa5163595924788b4cb76d2e472a, type: 3}
+    - {fileID: 8300000, guid: a99401e14847de348a01609deae7df00, type: 3}
+    - {fileID: 8300000, guid: 059bcd37f676a9641b70c3975a122c62, type: 3}
+    lands: []
+  surfaces: []
+  walkVolume: 0.6
+  sprintVolumeMul: 1.35
+  crouchVolumeMul: 0.45
+  climbVolumeMul: 0.7
+  volumeJitter: 0.12
+  pitchRange: {x: 0.94, y: 1.06}
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!1 &4659948306774317442
 GameObject:
   m_ObjectHideFlags: 0

@@ -137,6 +137,9 @@ public class PlayerHeadBob : MonoBehaviour
     Vector3 _bobEuler;
     float _landingDip;
 
+    /// <summary>Нижняя точка камеры: один вызов на шаг, без второго расчёта фазы.</summary>
+    public event Action Stepped;
+
     public HeadBobSettings Settings => settings;
 
     void Awake()
@@ -169,22 +172,25 @@ public class PlayerHeadBob : MonoBehaviour
 
     void UpdateBob(float dt)
     {
-        float planarSpeed = _player.PlanarSpeed;
-        bool moving = planarSpeed > settings.minSpeed;
+        // На вертикальной лестнице горизонтальной скорости нет — берём полный вектор.
+        float speed = _player.IsClimbing ? _player.Velocity.magnitude : _player.PlanarSpeed;
+        bool moving = speed > settings.minSpeed;
         bool canBob = moving && (_player.IsGrounded || _player.IsClimbing);
 
         float gaitSpeed = Mathf.Max(0.01f, _player.CurrentGaitSpeed);
-        float targetWeight = canBob ? Mathf.InverseLerp(settings.minSpeed, gaitSpeed, planarSpeed) : 0f;
+        float targetWeight = canBob ? Mathf.InverseLerp(settings.minSpeed, gaitSpeed, speed) : 0f;
         _bobWeight = Mathf.MoveTowards(_bobWeight, Mathf.Clamp01(targetWeight), settings.blendSpeed * dt);
 
         HeadBobProfile profile = GetProfile(_player.CurrentGait);
         HeadBobProfile idle = settings.idle;
 
+        float previousPhase = _bobPhase;
         if (_bobWeight > 0.01f)
         {
             // шаги/с, а не м/с
-            float speedRatio = Mathf.Clamp(planarSpeed / gaitSpeed, 0f, 1.25f);
+            float speedRatio = Mathf.Clamp(speed / gaitSpeed, 0f, 1.25f);
             _bobPhase += profile.stepsPerSecond * Mathf.PI * speedRatio * dt;
+            NotifyStep(previousPhase, _bobPhase);
         }
 
         _idlePhase += dt * Mathf.PI * 2f * Mathf.Max(0.05f, settings.idleFrequency);
@@ -211,6 +217,19 @@ public class PlayerHeadBob : MonoBehaviour
         float recover = 1f - Mathf.Exp(-settings.returnSpeed * dt); // тот же smoothing, что у приседа
         _bobOffset = Vector3.Lerp(_bobOffset, targetOffset, recover);
         _bobEuler = Vector3.Lerp(_bobEuler, targetEuler, recover);
+    }
+
+    void NotifyStep(float previousPhase, float phase)
+    {
+        // sin(2φ) = -1 при φ = 3π/4 + πk. Пока вес маленький, это ещё не шаг.
+        if (_bobWeight <= 0.25f || Stepped == null)
+            return;
+
+        const float trough = Mathf.PI * 0.75f;
+        int before = Mathf.FloorToInt((previousPhase - trough) / Mathf.PI);
+        int after = Mathf.FloorToInt((phase - trough) / Mathf.PI);
+        if (after > before)
+            Stepped.Invoke();
     }
 
     HeadBobProfile GetProfile(PlayerGait gait)

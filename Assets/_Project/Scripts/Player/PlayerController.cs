@@ -165,6 +165,9 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    /// <summary>Скорость падения в момент касания земли, м/с. Отрицательная.</summary>
+    public event Action<float> Landed;
+
     public float ConsumeLandingImpact()
     {
         // Один раз отдаём скорость удара о землю, чтобы bob не читал её каждый кадр.
@@ -410,7 +413,14 @@ public class PlayerController : MonoBehaviour
         _grounded = !rising && ((flags & CollisionFlags.Below) != 0 || ProbeGround());
 
         if (!wasGrounded && _grounded)
+        {
             _landingImpactSpeed = fallSpeed;
+            Landed?.Invoke(fallSpeed);
+        }
+
+        // Иначе срыв со ступени уносит groundedStick (−8) в падение и звучит как удар.
+        if (wasGrounded && !_grounded && _velocity.y < 0f)
+            _velocity.y = 0f;
 
         if ((flags & CollisionFlags.Above) != 0 && _velocity.y > 0f)
             _velocity.y = 0f;
