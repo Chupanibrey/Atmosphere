@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 746484667693946977}
   - component: {fileID: 8123456789012345671}
   - component: {fileID: 5748392016574839201}
+  - component: {fileID: 6348285667036289584}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -256,6 +257,23 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &6348285667036289584
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 996875187828747087}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a2d9c4e1b8f4a70c5d3e9f07b164a28, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerBody
+  model: {fileID: 919132149155446097, guid: a11a1e3ccf9543640ac24362e4ed3a13, type: 3}
+  controller: {fileID: 9100000, guid: bc14a6fc6c341724fb31864fbda3fd8b, type: 2}
+  modelScale: 0.887
+  feetLift: 0.106
+  lookDownShare: 0.4
 --- !u!1 &4659948306774317442
 GameObject:
   m_ObjectHideFlags: 0

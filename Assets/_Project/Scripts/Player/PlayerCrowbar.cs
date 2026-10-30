@@ -2,9 +2,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Аниация рук с монтировкой: достать, покой, случайный удар, убрать.
+/// Руки с монтировкой: достать, покой, случайный удар, убрать.
 /// </summary>
-[DefaultExecutionOrder(300)]
+[DefaultExecutionOrder(320)]
 [RequireComponent(typeof(PlayerController))]
 public class PlayerCrowbar : MonoBehaviour
 {
@@ -40,9 +40,9 @@ public class PlayerCrowbar : MonoBehaviour
     void Awake()
     {
         _player = GetComponent<PlayerController>();
-        var actions = InputSystem.actions;
-        _drawAction = actions != null ? actions.FindAction("Player/DrawWeapon", false) : null;
-        _meleeAction = actions != null ? actions.FindAction("Player/Melee", false) : null;
+        PlayerActions.Ensure();
+        _drawAction = PlayerActions.DrawWeapon;
+        _meleeAction = PlayerActions.Melee;
     }
 
     void OnEnable()

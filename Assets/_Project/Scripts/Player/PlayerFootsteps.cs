@@ -4,7 +4,6 @@ using UnityEngine;
 /// Шаги и приземление. Такт берётся у камеры, удар о землю — у контроллера.
 /// Клип выбирается по полу под ногами, чтобы следующее покрытие не требовало нового скрипта.
 /// </summary>
-[DefaultExecutionOrder(290)]
 [RequireComponent(typeof(PlayerController))]
 [RequireComponent(typeof(PlayerHeadBob))]
 public class PlayerFootsteps : MonoBehaviour

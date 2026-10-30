@@ -101,13 +101,13 @@ public class HeadBobProfile
     [Tooltip("Каденс: шагов в секунду на полной скорости.")]
     public float stepsPerSecond = 1.8f;
 
-    [Tooltip("Смещение вверх-вниз, м/с²..")]
+    [Tooltip("Смещение вверх-вниз, м.")]
     public float vertical = 0.03f;
 
-    [Tooltip("Смещение влево-вправо, м/с²..")]
+    [Tooltip("Смещение влево-вправо, м.")]
     public float horizontal = 0.02f;
 
-    [Tooltip("Смещение вперёд-назад, м/с²..")]
+    [Tooltip("Смещение вперёд-назад, м.")]
     public float forward = 0.008f;
 
     [Tooltip("Наклон вверх-вниз, градусы.")]
@@ -123,7 +123,7 @@ public class HeadBobProfile
 /// <summary>
 /// Покачивание камеры.
 /// </summary>
-[DefaultExecutionOrder(300)] // после PlayerController
+[DefaultExecutionOrder(100)] // до сборки камеры в PlayerController
 [RequireComponent(typeof(PlayerController))]
 public class PlayerHeadBob : MonoBehaviour
 {

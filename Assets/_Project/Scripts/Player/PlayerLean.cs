@@ -7,7 +7,7 @@ public class PlayerLeanSettings
 {
     public bool enabled = true;
 
-    [Tooltip("Насколько камера уходит в сторону, м/с².")]
+    [Tooltip("Насколько камера уходит в сторону, м.")]
     public float distance = 0.28f;
 
     [Tooltip("Небольшое опускание головы при наклоне.")]
@@ -19,7 +19,7 @@ public class PlayerLeanSettings
     [Tooltip("Как быстро выходим и возвращаемся.")]
     public float lerpSpeed = 10f;
 
-    [Tooltip("Запас вокруг near clip, м/с².")]
+    [Tooltip("Запас вокруг near clip, м.")]
     public float wallPadding = 0.08f;
 
     [Tooltip("Слои стен.")]
@@ -46,6 +46,9 @@ public class PlayerLean : MonoBehaviour
     Vector3 _euler;
     readonly RaycastHit[] _hits = new RaycastHit[16];
     readonly Vector3[] _nearCorners = new Vector3[4];
+    Vector3 _clearCameraPos;
+    Quaternion _clearCameraRot;
+    bool _cameraWasClear;
 
     public PlayerLeanSettings Settings => settings;
 
@@ -115,14 +118,22 @@ public class PlayerLean : MonoBehaviour
             return;
 
         Transform cam = _camera.transform;
-        bool prevBackfaces = Physics.queriesHitBackfaces;
-        Physics.queriesHitBackfaces = true;
-        try
+        if (_cameraWasClear
+            && (cam.position - _clearCameraPos).sqrMagnitude < 0.000004f
+            && Quaternion.Angle(cam.rotation, _clearCameraRot) < 0.25f)
+            return;
+
+        using (BackfaceQueries.Begin())
         {
             if (CornersClear(cam.position, cam.rotation))
+            {
+                _cameraWasClear = true;
+                _clearCameraPos = cam.position;
+                _clearCameraRot = cam.rotation;
                 return;
+            }
 
-            // Откатываем камеру назад вдоль взгляда, пока near clip не выйдет из стены.
+            _cameraWasClear = false;
             Vector3 origin = cam.position;
             Vector3 back = -cam.forward;
             float lo = 0f;
@@ -137,10 +148,6 @@ public class PlayerLean : MonoBehaviour
             }
 
             cam.position = origin + back * hi;
-        }
-        finally
-        {
-            Physics.queriesHitBackfaces = prevBackfaces;
         }
     }
 
@@ -171,14 +178,11 @@ public class PlayerLean : MonoBehaviour
         float desired = settings.distance * Mathf.Abs(axis);
         float sign = Mathf.Sign(axis);
 
-        bool prevBackfaces = Physics.queriesHitBackfaces;
-        Physics.queriesHitBackfaces = true;
-        try
+        using (BackfaceQueries.Begin())
         {
             if (IsClear(sign * desired, axis))
                 return desired;
 
-            // Максимальный lean, при котором near clip не заходит в стену.
             float lo = 0f;
             float hi = desired;
             for (int i = 0; i < FitIterations; i++)
@@ -191,10 +195,6 @@ public class PlayerLean : MonoBehaviour
             }
 
             return lo;
-        }
-        finally
-        {
-            Physics.queriesHitBackfaces = prevBackfaces;
         }
     }
 
@@ -283,8 +283,8 @@ public class PlayerLean : MonoBehaviour
 
     void CacheAction()
     {
-        var actions = InputSystem.actions;
-        _leanAction = actions != null ? actions.FindAction("Player/Lean", throwIfNotFound: false) : null;
+        PlayerActions.Ensure();
+        _leanAction = PlayerActions.Lean;
         if (_leanAction != null)
             return;
 

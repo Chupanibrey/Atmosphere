@@ -6,12 +6,12 @@ using UnityEngine;
 /// </summary>
 public sealed class ViewModelObstruction
 {
-    const float Padding = 0.04f;
+    const float Padding = 0.08f;
+    const float ProbeRadius = 0.032f;
+    const float SampleSpacing = 0.025f;
+    const int MaxSamples = 48;
 
-    static readonly Vector3[] Axes =
-    {
-        Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back
-    };
+    static readonly Vector3[] Directions = BuildDirections();
 
     struct SurfacePoint
     {
@@ -23,21 +23,25 @@ public sealed class ViewModelObstruction
         public int I0, I1, I2, I3;
         public float W0, W1, W2, W3;
         public bool Skinned;
+        public bool Shell;
     }
 
     Transform _view;
     Transform _camera;
     Transform _ignore;
     SurfacePoint[] _points = System.Array.Empty<SurfacePoint>();
+    Vector3[] _world = System.Array.Empty<Vector3>();
     readonly RaycastHit[] _hits = new RaycastHit[16];
     Vector3 _slide;
     Vector3 _slideVelocity;
+    Quaternion _fold = Quaternion.identity;
     bool _warned;
 
     public void ResetMotion()
     {
         _slide = Vector3.zero;
         _slideVelocity = Vector3.zero;
+        _fold = Quaternion.identity;
     }
 
     public void Apply(Transform viewModel, Transform camera, Transform ignoreRoot, Vector3 restPosition, Vector3 restEuler, float deltaTime)
@@ -57,20 +61,48 @@ public sealed class ViewModelObstruction
         if (_points.Length == 0)
             return;
 
-        bool prevBackfaces = Physics.queriesHitBackfaces;
-        Physics.queriesHitBackfaces = true;
-        try
+        if (_world.Length != _points.Length)
+            _world = new Vector3[_points.Length];
+
+        bool busy = _slide.sqrMagnitude > 0.0001f || Quaternion.Angle(_fold, Quaternion.identity) > 0.2f;
+        Skin(shellOnly: !busy);
+
+        using (BackfaceQueries.Begin())
         {
-            Vector3 solved = Vector3.zero;
-            for (int iter = 0; iter < 3; iter++)
+            // Дальние точки сетки нужны только у стены. В комнате хватает внешнего контура.
+            if (!busy && !ShellNear())
             {
-                _view.localPosition = restPosition + solved;
-                if (!FindWorst(out _, out Vector3 correction, out float depth) || depth <= 0.001f)
+                _slide = Vector3.zero;
+                _slideVelocity = Vector3.zero;
+                _fold = Quaternion.identity;
+                _view.localRotation = restRotation;
+                _view.localPosition = restPosition;
+                return;
+            }
+
+            if (!busy)
+                Skin(shellOnly: false);
+
+            Vector3 solved = Vector3.zero;
+            for (int iter = 0; iter < 2; iter++)
+            {
+                Vector3 shift = _camera.TransformVector(solved);
+                if (!FindWorst(shift, false, out _, out Vector3 correction, out float depth) || depth <= 0.001f)
                     break;
 
-                solved += _camera.InverseTransformDirection(correction);
-                ClampSlide(ref solved, restPosition);
+                solved = SlideAlongWall(solved, _camera.InverseTransformDirection(correction), restPosition);
             }
+
+            Vector3 finalShift = _camera.TransformVector(solved);
+            Quaternion solvedFold = Quaternion.identity;
+            if (FindWorst(finalShift, false, out Vector3 point, out Vector3 leftover, out float left) && left > 0.001f)
+                solvedFold = FoldTip(point, leftover, restPosition + solved);
+
+            float nextAngle = Quaternion.Angle(solvedFold, Quaternion.identity);
+            if (nextAngle >= Quaternion.Angle(_fold, Quaternion.identity) - 0.1f)
+                _fold = solvedFold;
+            else
+                _fold = Quaternion.Slerp(_fold, solvedFold, 1f - Mathf.Exp(-14f * deltaTime));
 
             if (solved.sqrMagnitude + 0.0001f >= _slide.sqrMagnitude)
             {
@@ -82,32 +114,76 @@ public sealed class ViewModelObstruction
                 _slide = Vector3.SmoothDamp(_slide, solved, ref _slideVelocity, 0.08f, Mathf.Infinity, deltaTime);
             }
 
-            _view.localRotation = restRotation;
+            _view.localRotation = _fold * restRotation;
             _view.localPosition = restPosition + _slide;
         }
-        finally
-        {
-            Physics.queriesHitBackfaces = prevBackfaces;
-        }
+    }
+
+    static Vector3 SlideAlongWall(Vector3 solved, Vector3 push, Vector3 restPosition)
+    {
+        Vector3 desired = solved + push;
+        Vector3 clamped = desired;
+        ClampSlide(ref clamped, restPosition);
+
+        Vector3 lost = desired - clamped;
+        if (lost.sqrMagnitude < 0.000001f)
+            return clamped;
+
+        // К камере ближе нельзя: руки пропадут. Остаток уходит вдоль стены, в плоскость экрана.
+        Vector3 lateral = new Vector3(push.x, push.y, 0f);
+        if (lateral.sqrMagnitude < 0.0001f)
+            lateral = new Vector3(push.x <= 0f ? -1f : 1f, -0.35f, 0f);
+
+        clamped += lateral.normalized * lost.magnitude;
+        ClampSlide(ref clamped, restPosition);
+        return clamped;
     }
 
     static void ClampSlide(ref Vector3 slide, Vector3 restPosition)
     {
         float maxBack = Mathf.Max(0.04f, restPosition.z - 0.07f);
-        slide.x = Mathf.Clamp(slide.x, -0.22f, 0.22f);
-        slide.y = Mathf.Clamp(slide.y, -0.1f, 0.05f);
+        slide.x = Mathf.Clamp(slide.x, -0.32f, 0.16f);
+        slide.y = Mathf.Clamp(slide.y, -0.14f, 0.04f);
         slide.z = Mathf.Clamp(slide.z, -maxBack, 0.02f);
     }
 
-    bool FindWorst(out int index, out Vector3 correction, out float depth)
+    void Skin(bool shellOnly)
     {
-        index = -1;
+        for (int i = 0; i < _points.Length; i++)
+        {
+            if (shellOnly && !_points[i].Shell)
+                continue;
+
+            _world[i] = World(_points[i]);
+        }
+    }
+
+    bool ShellNear()
+    {
+        for (int i = 0; i < _points.Length; i++)
+        {
+            if (!_points[i].Shell)
+                continue;
+
+            if (NearWall(_world[i], 0.12f))
+                return true;
+        }
+
+        return false;
+    }
+
+    bool FindWorst(Vector3 shift, bool shellOnly, out Vector3 point, out Vector3 correction, out float depth)
+    {
+        point = Vector3.zero;
         correction = Vector3.zero;
         depth = 0f;
 
         for (int i = 0; i < _points.Length; i++)
         {
-            Vector3 world = World(_points[i]);
+            if (shellOnly && !_points[i].Shell)
+                continue;
+
+            Vector3 world = _world[i] + shift;
             if (!TryCorrection(world, out Vector3 push))
                 continue;
 
@@ -117,26 +193,52 @@ public sealed class ViewModelObstruction
 
             depth = amount;
             correction = push;
-            index = i;
+            point = world;
         }
 
-        return index >= 0;
+        return depth > 0f;
+    }
+
+    Quaternion FoldTip(Vector3 point, Vector3 correction, Vector3 pivotLocal)
+    {
+        // Сдвиг уже на пределе. Крутим вокруг рук: крюк далеко, ладони почти не двигаются.
+        float inside = Mathf.Max(0f, correction.magnitude - Padding);
+        Vector3 push = correction.normalized * (inside + 0.02f);
+        Vector3 pivot = _camera.TransformPoint(pivotLocal);
+        Vector3 from = point - pivot;
+        Vector3 to = from + push;
+        if (from.sqrMagnitude < 0.0001f || to.sqrMagnitude < 0.0001f)
+            return Quaternion.identity;
+
+        Quaternion world = Quaternion.FromToRotation(from, to);
+        Quaternion local = Quaternion.Inverse(_camera.rotation) * world * _camera.rotation;
+        return LimitAngle(local, 14f);
+    }
+
+    static Quaternion LimitAngle(Quaternion rotation, float maxDegrees)
+    {
+        rotation.ToAngleAxis(out float angle, out Vector3 axis);
+        if (float.IsInfinity(angle) || axis.sqrMagnitude < 0.0001f)
+            return Quaternion.identity;
+
+        if (angle > 180f)
+            angle -= 360f;
+
+        angle = Mathf.Clamp(angle, -maxDegrees, maxDegrees);
+        if (Mathf.Abs(angle) < 0.05f)
+            return Quaternion.identity;
+
+        return Quaternion.AngleAxis(angle, axis);
     }
 
     bool TryCorrection(Vector3 point, out Vector3 correction)
     {
         correction = Vector3.zero;
-        Vector3 origin = _camera.position;
-        Vector3 delta = point - origin;
-        float distance = delta.magnitude;
-        if (distance < 0.12f || distance > 2.5f)
+        if (!Aim(point, 0f, out Vector3 origin, out Vector3 direction, out float distance))
             return false;
 
-        if (Vector3.Dot(delta, _camera.forward) < 0.05f)
-            return false;
-
-        Vector3 direction = delta / distance;
-        if (!ClosestHit(origin, direction, distance + Padding, out RaycastHit hit))
+        // Радиус перекрывает промежуток между точками, иначе крюк и древко проходят между лучами.
+        if (!ClosestHit(origin, direction, distance, ProbeRadius, out RaycastHit hit))
             return false;
 
         Vector3 normal = hit.normal;
@@ -152,10 +254,36 @@ public sealed class ViewModelObstruction
         return true;
     }
 
-    bool ClosestHit(Vector3 origin, Vector3 direction, float distance, out RaycastHit closest)
+    bool NearWall(Vector3 point, float margin)
     {
-        int count = Physics.RaycastNonAlloc(
+        if (!Aim(point, margin, out Vector3 origin, out Vector3 direction, out float distance))
+            return false;
+
+        return ClosestHit(origin, direction, distance, ProbeRadius, out _);
+    }
+
+    bool Aim(Vector3 point, float margin, out Vector3 origin, out Vector3 direction, out float distance)
+    {
+        origin = _camera.position;
+        direction = Vector3.forward;
+        Vector3 delta = point - origin;
+        distance = delta.magnitude;
+        if (distance < 0.12f || distance > 2.5f)
+            return false;
+
+        if (Vector3.Dot(delta, _camera.forward) < 0.05f)
+            return false;
+
+        direction = delta / distance;
+        distance += margin;
+        return true;
+    }
+
+    bool ClosestHit(Vector3 origin, Vector3 direction, float distance, float radius, out RaycastHit closest)
+    {
+        int count = Physics.SphereCastNonAlloc(
             origin,
+            radius,
             direction,
             _hits,
             distance,
@@ -267,7 +395,7 @@ public sealed class ViewModelObstruction
         if (skinned && (bones == null || bindposes == null || bones.Length != bindposes.Length || bones.Length == 0))
             skinned = false;
 
-        int[] chosen = PickVertices(vertices, mesh.bounds);
+        int[] chosen = PickVertices(vertices, mesh.bounds, out int shellCount);
         var weights = new BoneWeight[chosen.Length];
         if (skinned)
             ReadWeights(mesh, chosen, weights);
@@ -281,7 +409,8 @@ public sealed class ViewModelObstruction
                 Space = renderer.transform,
                 Bones = bones,
                 Bindposes = bindposes,
-                Skinned = skinned
+                Skinned = skinned,
+                Shell = i < shellCount
             };
 
             if (skinned)
@@ -331,71 +460,113 @@ public sealed class ViewModelObstruction
         return bones[index];
     }
 
-    static int[] PickVertices(Vector3[] vertices, Bounds bounds)
+    static Vector3[] BuildDirections()
     {
-        var chosen = new int[Axes.Length + 8];
-        var score = new float[Axes.Length + 8];
-        for (int i = 0; i < Axes.Length; i++)
-            score[i] = float.NegativeInfinity;
+        var directions = new Vector3[26];
+        int count = 0;
+        for (int x = -1; x <= 1; x++)
+        {
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int z = -1; z <= 1; z++)
+                {
+                    if (x == 0 && y == 0 && z == 0)
+                        continue;
+
+                    directions[count++] = new Vector3(x, y, z).normalized;
+                }
+            }
+        }
+
+        return directions;
+    }
+
+    static int[] PickVertices(Vector3[] vertices, Bounds bounds, out int shellCount)
+    {
+        int count = vertices.Length;
+        var kept = new int[Mathf.Min(MaxSamples, count)];
+        int keptCount = 0;
+        var bestIndex = new int[Directions.Length];
+        var bestDot = new float[Directions.Length];
+        for (int i = 0; i < Directions.Length; i++)
+            bestDot[i] = float.NegativeInfinity;
 
         Vector3 center = bounds.center;
-        Vector3 extents = bounds.extents;
-        var corners = new Vector3[8];
-        for (int i = 0; i < 8; i++)
+        for (int v = 0; v < count; v++)
         {
-            corners[i] = center + new Vector3(
-                (i & 1) == 0 ? extents.x : -extents.x,
-                (i & 2) == 0 ? extents.y : -extents.y,
-                (i & 4) == 0 ? extents.z : -extents.z);
-            score[Axes.Length + i] = float.PositiveInfinity;
+            Vector3 offset = vertices[v] - center;
+            for (int d = 0; d < Directions.Length; d++)
+            {
+                float dot = Vector3.Dot(offset, Directions[d]);
+                if (dot <= bestDot[d])
+                    continue;
+
+                bestDot[d] = dot;
+                bestIndex[d] = v;
+            }
         }
 
+        for (int d = 0; d < Directions.Length && keptCount < kept.Length; d++)
+            TryKeep(vertices, kept, ref keptCount, bestIndex[d]);
+
+        shellCount = keptCount;
+
+        // Дальше точки ставятся в самые большие промежутки, пока шаг не станет меньше радиуса луча.
+        float spacingSqr = SampleSpacing * SampleSpacing;
+        var nearest = new float[count];
+        for (int v = 0; v < count; v++)
+            nearest[v] = float.PositiveInfinity;
+
+        for (int k = 0; k < keptCount; k++)
+            NoteKept(vertices, nearest, kept[k]);
+
+        while (keptCount < kept.Length)
+        {
+            int farthest = -1;
+            float farthestSqr = spacingSqr;
+            for (int v = 0; v < count; v++)
+            {
+                if (nearest[v] <= farthestSqr)
+                    continue;
+
+                farthestSqr = nearest[v];
+                farthest = v;
+            }
+
+            if (farthest < 0)
+                break;
+
+            kept[keptCount++] = farthest;
+            NoteKept(vertices, nearest, farthest);
+        }
+
+        var result = new int[keptCount];
+        System.Array.Copy(kept, result, keptCount);
+        return result;
+    }
+
+    static void TryKeep(Vector3[] vertices, int[] kept, ref int keptCount, int index)
+    {
+        for (int i = 0; i < keptCount; i++)
+        {
+            if (kept[i] == index)
+                return;
+        }
+
+        if (keptCount < kept.Length)
+            kept[keptCount++] = index;
+    }
+
+    static void NoteKept(Vector3[] vertices, float[] nearest, int index)
+    {
+        Vector3 point = vertices[index];
+        nearest[index] = 0f;
         for (int v = 0; v < vertices.Length; v++)
         {
-            Vector3 vertex = vertices[v];
-            for (int a = 0; a < Axes.Length; a++)
-            {
-                float dot = Vector3.Dot(vertex, Axes[a]);
-                if (dot <= score[a])
-                    continue;
-
-                score[a] = dot;
-                chosen[a] = v;
-            }
-
-            for (int c = 0; c < 8; c++)
-            {
-                float distance = (vertex - corners[c]).sqrMagnitude;
-                int slot = Axes.Length + c;
-                if (distance >= score[slot])
-                    continue;
-
-                score[slot] = distance;
-                chosen[slot] = v;
-            }
+            float distance = (vertices[v] - point).sqrMagnitude;
+            if (distance < nearest[v])
+                nearest[v] = distance;
         }
-
-        int count = 0;
-        var unique = new int[chosen.Length];
-        for (int i = 0; i < chosen.Length; i++)
-        {
-            bool duplicate = false;
-            for (int j = 0; j < count; j++)
-            {
-                if (unique[j] != chosen[i])
-                    continue;
-
-                duplicate = true;
-                break;
-            }
-
-            if (!duplicate)
-                unique[count++] = chosen[i];
-        }
-
-        var result = new int[count];
-        System.Array.Copy(unique, result, count);
-        return result;
     }
 
     static void ReadWeights(Mesh mesh, int[] chosen, BoneWeight[] destination)

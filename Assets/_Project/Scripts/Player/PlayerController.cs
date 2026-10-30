@@ -40,7 +40,7 @@ public class PlayerMoveSettings
 [Serializable]
 public class PlayerJumpSettings
 {
-    [Tooltip("Высота прыжка, м/с².")]
+    [Tooltip("Высота прыжка, м.")]
     public float height = 0.5f;
     [Tooltip("Ускорение свободного падения, м/с².")]
     public float gravity = -9.81f;
@@ -54,15 +54,15 @@ public class PlayerJumpSettings
 public class PlayerCrouchSettings
 {
     public bool toggle;
-    [Tooltip("Рост стоя м/с².")]
+    [Tooltip("Рост стоя, м.")]
     public float standingHeight = 1.8f;
-    [Tooltip("Высота капсулы в приседе, м/с².")]
+    [Tooltip("Высота капсулы в приседе, м.")]
     public float height = 1.1f;
-    [Tooltip("Доля роста до глаз м/с².")]
+    [Tooltip("Доля роста до глаз.")]
     public float eyeHeightRatio = 0.97f;
-    [Tooltip("Высота камеры от ног в полный рост, м/с².")]
+    [Tooltip("Высота камеры от ног в полный рост, м.")]
     public float standingCameraY = 1.75f;
-    [Tooltip("Высота камеры от ног в приседе, м/с².")]
+    [Tooltip("Высота камеры от ног в приседе, м.")]
     public float cameraY = 1.07f;
     public float lerpSpeed = 12f;
 }
@@ -99,6 +99,7 @@ public class PlayerController : MonoBehaviour
 
     CharacterController _controller;
     PlayerLean _lean;
+    PlayerBody _body;
     InputAction _moveAction;
     InputAction _lookAction;
     InputAction _jumpAction;
@@ -108,6 +109,8 @@ public class PlayerController : MonoBehaviour
     MoveState _state = MoveState.Walking;
     Vector3 _velocity;
     Vector3 _horizontalVelocity;
+    Vector3 _planarForward = Vector3.forward;
+    Vector3 _planarRight = Vector3.right;
     float _pitch;
     float _coyoteTimer;
     float _jumpBufferTimer;
@@ -132,7 +135,15 @@ public class PlayerController : MonoBehaviour
     public bool IsClimbing => _state == MoveState.Climbing;
     public bool IsSprinting => _isSprinting;
     public Vector3 Velocity => _velocity;
-    public float PlanarSpeed => new Vector2(_velocity.x, _velocity.z).magnitude;
+    public float PlanarSpeed
+    {
+        get
+        {
+            float x = _velocity.x;
+            float z = _velocity.z;
+            return Mathf.Sqrt(x * x + z * z);
+        }
+    }
     public float Pitch => _pitch;
     public float CameraHeightY => _cameraHeightY;
     public Vector3 CameraRestLocalPos => _cameraRestLocalPos;
@@ -170,7 +181,7 @@ public class PlayerController : MonoBehaviour
 
     public float ConsumeLandingImpact()
     {
-        // Один раз отдаём скорость удара о землю, чтобы bob не читал её каждый кадр.
+        // Кадр удара забирает покачивание камеры. Шаги слушают Landed и этот вызов не делают.
         float impact = _landingImpactSpeed;
         _landingImpactSpeed = 0f;
         return impact;
@@ -194,6 +205,7 @@ public class PlayerController : MonoBehaviour
     {
         _controller = GetComponent<CharacterController>();
         TryGetComponent(out _lean);
+        TryGetComponent(out _body);
         CacheActions();
 
         if (TryGetComponent(out CapsuleCollider capsuleCollider))
@@ -273,6 +285,7 @@ public class PlayerController : MonoBehaviour
         transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
 
         HandleLook(lookInput);
+        CachePlanarAxes();
         HandleCrouchInput();
         UpdateJumpBuffer();
 
@@ -291,7 +304,11 @@ public class PlayerController : MonoBehaviour
             return;
 
         Vector3 pos = _cameraRestLocalPos;
-        pos.y = _cameraHeightY;
+        // Глаза анимации, а не формула капсулы: в приседе голова остаётся выше 1.07 м.
+        if (_body != null && _body.TryGetEyeLocal(out Vector3 eye))
+            pos = eye;
+        else
+            pos.y = _cameraHeightY;
         look.cameraPivot.localPosition = pos + _bobOffset + _leanOffset;
         look.cameraPivot.localRotation = Quaternion.Euler(
             _pitch + _bobEuler.x + _leanEuler.x,
@@ -324,18 +341,23 @@ public class PlayerController : MonoBehaviour
 
     void CacheActions()
     {
-        var actions = InputSystem.actions;
-        if (actions == null)
-        {
-            Debug.LogError("PlayerController: не найден Input Action Asset.");
-            return;
-        }
+        PlayerActions.Ensure();
+        _moveAction = PlayerActions.Move;
+        _lookAction = PlayerActions.Look;
+        _jumpAction = PlayerActions.Jump;
+        _sprintAction = PlayerActions.Sprint;
+        _crouchAction = PlayerActions.Crouch;
+    }
 
-        _moveAction = actions.FindAction("Player/Move", throwIfNotFound: false);
-        _lookAction = actions.FindAction("Player/Look", throwIfNotFound: false);
-        _jumpAction = actions.FindAction("Player/Jump", throwIfNotFound: false);
-        _sprintAction = actions.FindAction("Player/Sprint", throwIfNotFound: false);
-        _crouchAction = actions.FindAction("Player/Crouch", throwIfNotFound: false);
+    void CachePlanarAxes()
+    {
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        _planarForward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+
+        Vector3 right = transform.right;
+        right.y = 0f;
+        _planarRight = right.sqrMagnitude > 0.0001f ? right.normalized : Vector3.right;
     }
 
     void HandleLook(Vector2 lookInput)
@@ -528,16 +550,12 @@ public class PlayerController : MonoBehaviour
 
     Vector3 GetPlanarForward()
     {
-        Vector3 forward = transform.forward;
-        forward.y = 0f;
-        return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+        return _planarForward;
     }
 
     Vector3 GetPlanarRight()
     {
-        Vector3 right = transform.right;
-        right.y = 0f;
-        return right.sqrMagnitude > 0.0001f ? right.normalized : Vector3.right;
+        return _planarRight;
     }
 
     Vector3 GetCapsuleBottom()
