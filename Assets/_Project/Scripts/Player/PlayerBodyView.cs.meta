@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: e616cef19e255bd4abc9f46f1c34cfba
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - bodyPrefab: {fileID: 919132149155446097, guid: add5e878be621574e8e38be525a2de58, type: 3}
+  - idle: {fileID: -119753138820086457, guid: 793be2d5f72261e41978725c48c90a4c, type: 3}
+  - walk: {fileID: -203655887218126122, guid: 0fd5213d39105784ea940339f1ece8f4, type: 3}
+  - run: {fileID: -203655887218126122, guid: 80d9fa08af96fb6499e9a80a74d6118a, type: 3}
+  - crouchIdle: {instanceID: 0}
+  - crouchWalk: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
