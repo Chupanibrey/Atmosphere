@@ -10,6 +10,8 @@ public static class PlayerModelSetup
     const string WalkPath = "Assets/_Project/Animations/Player/Walking.fbx";
     const string RunPath = "Assets/_Project/Animations/Player/Running.fbx";
     const string CrouchPath = "Assets/_Project/Animations/Player/Crouched Walking.fbx";
+    const string JumpPath = "Assets/_Project/Animations/Player/Jumping.fbx";
+    const string FallPath = "Assets/_Project/Animations/Player/Falling Idle.fbx";
     const string ControllerPath = "Assets/_Project/Animations/Player/Player.controller";
 
     public static string ClipMotion()
@@ -286,6 +288,532 @@ public static class PlayerModelSetup
         tree.AddChild(run, 4.5f);
         AssetDatabase.AddObjectToAsset(tree, controller);
         return tree;
+    }
+
+    public static string AddAir()
+    {
+        var avatar = FindAvatar();
+        ConfigureAir(avatar);
+
+        var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+        var machine = controller.layers[0].stateMachine;
+        var locomotion = FindState(machine, "Locomotion");
+        var crouch = FindState(machine, "Crouch");
+
+        RemoveAirState(machine, "Jump");
+        RemoveAirState(machine, "Fall");
+        RemoveAirState(machine, "Falling Idle");
+        RemoveAirState(machine, "Land");
+
+        EnsureParameter(controller, "Jump", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "Fall", AnimatorControllerParameterType.Bool);
+        EnsureParameter(controller, "Grounded", AnimatorControllerParameterType.Bool);
+
+        var jump = machine.AddState("Jump");
+        jump.motion = FindClip(JumpPath, "Jump");
+        jump.speed = 1.7f;
+
+        var fall = machine.AddState("Fall");
+        fall.motion = FindClip(JumpPath, "Fall");
+
+        var fallingIdle = machine.AddState("Falling Idle");
+        fallingIdle.motion = FindClip(FallPath, "Falling Idle");
+
+        var land = machine.AddState("Land");
+        land.motion = FindClip(JumpPath, "Land");
+
+        AddTrigger(locomotion, jump, "Jump", 0.06f);
+        AddBool(locomotion, fallingIdle, "Fall", true, 0.12f, false, 0f);
+        AddBool(crouch, fallingIdle, "Fall", true, 0.12f, false, 0f);
+
+        AddBool(jump, land, "Grounded", true, 0.05f, false, 0f);
+        AddExit(jump, fall, 0.92f, 0.04f);
+
+        AddBool(fall, land, "Grounded", true, 0.05f, false, 0f);
+
+        AddBool(fallingIdle, land, "Grounded", true, 0.1f, false, 0f);
+        AddTrigger(land, jump, "Jump", 0.06f);
+        AddBool(land, crouch, "Crouch", true, 0.16f, true, 0.8f);
+        AddBool(land, locomotion, "Crouch", false, 0.16f, true, 0.8f);
+
+        EditorUtility.SetDirty(controller);
+        AssetDatabase.SaveAssets();
+
+        var tree = locomotion.motion as BlendTree;
+        float max = tree != null ? tree.maxThreshold : -1f;
+        return "max=" + max.ToString("0.00")
+            + " jump=" + jump.motion.name + ":" + ((AnimationClip)jump.motion).length.ToString("0.00")
+            + " fall=" + ((AnimationClip)fall.motion).length.ToString("0.00")
+            + " idle=" + ((AnimationClip)fallingIdle.motion).length.ToString("0.00")
+            + " land=" + ((AnimationClip)land.motion).length.ToString("0.00");
+    }
+
+    static Avatar FindAvatar()
+    {
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(ModelPath))
+        {
+            if (asset is Avatar avatar)
+                return avatar;
+        }
+
+        throw new FileNotFoundException("Avatar was not created for " + ModelPath);
+    }
+
+    static void ConfigureAir(Avatar avatar)
+    {
+        AssetDatabase.ImportAsset(JumpPath, ImportAssetOptions.ForceUpdate);
+        AssetDatabase.ImportAsset(FallPath, ImportAssetOptions.ForceUpdate);
+
+        var jumpImporter = (ModelImporter)AssetImporter.GetAtPath(JumpPath);
+        var fallImporter = (ModelImporter)AssetImporter.GetAtPath(FallPath);
+        if (HasClip(jumpImporter, "Jump") && HasClip(jumpImporter, "Fall") && HasClip(jumpImporter, "Land")
+            && HasClip(fallImporter, "Falling Idle"))
+            return;
+
+        jumpImporter.animationType = ModelImporterAnimationType.Human;
+        jumpImporter.avatarSetup = ModelImporterAvatarSetup.CopyFromOther;
+        jumpImporter.sourceAvatar = avatar;
+        jumpImporter.importCameras = false;
+        jumpImporter.importLights = false;
+
+        var existing = jumpImporter.clipAnimations;
+        if (existing == null || existing.Length == 0)
+            existing = jumpImporter.defaultClipAnimations;
+
+        var source = existing[0];
+        jumpImporter.clipAnimations = new[]
+        {
+            Slice(source, "Jump", 0, 50, false, -203655887218126122L),
+            Slice(source, "Fall", 50, 74, false, 4061839508520268033L),
+            Slice(source, "Land", 74, 113, false, 7382917461029384756L)
+        };
+        jumpImporter.SaveAndReimport();
+
+        fallImporter.animationType = ModelImporterAnimationType.Human;
+        fallImporter.avatarSetup = ModelImporterAvatarSetup.CopyFromOther;
+        fallImporter.sourceAvatar = avatar;
+        fallImporter.importCameras = false;
+        fallImporter.importLights = false;
+
+        var fallClips = fallImporter.clipAnimations;
+        if (fallClips == null || fallClips.Length == 0)
+            fallClips = fallImporter.defaultClipAnimations;
+
+        var idle = Slice(fallClips[0], "Falling Idle", (int)fallClips[0].firstFrame, (int)fallClips[0].lastFrame, true, ClipId(fallClips[0]));
+        fallImporter.clipAnimations = new[] { idle };
+        fallImporter.SaveAndReimport();
+    }
+
+    static bool HasClip(ModelImporter importer, string clipName)
+    {
+        var clips = importer.clipAnimations;
+        if (clips == null)
+            return false;
+
+        foreach (var clip in clips)
+        {
+            if (clip.name == clipName)
+                return true;
+        }
+
+        return false;
+    }
+
+    static ModelImporterClipAnimation Slice(ModelImporterClipAnimation source, string clipName, int first, int last, bool loop, long id)
+    {
+        source.name = clipName;
+        source.firstFrame = first;
+        source.lastFrame = last;
+        source.loopTime = loop;
+        source.loopPose = loop;
+        source.lockRootRotation = true;
+        // Дуга прыжка остаётся в root motion и не двигает скелет: камера сидит на глазах.
+        source.lockRootHeightY = false;
+        source.lockRootPositionXZ = true;
+        source.keepOriginalPositionY = false;
+        source.heightFromFeet = true;
+        source.keepOriginalOrientation = true;
+        source.keepOriginalPositionXZ = false;
+        object boxed = source;
+        IdField().SetValue(boxed, id);
+        return (ModelImporterClipAnimation)boxed;
+    }
+
+    static long ClipId(ModelImporterClipAnimation clip)
+    {
+        object boxed = clip;
+        return (long)IdField().GetValue(boxed);
+    }
+
+    static System.Reflection.FieldInfo IdField()
+    {
+        return typeof(ModelImporterClipAnimation).GetField(
+            "internalID",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+    }
+
+    static void EnsureParameter(AnimatorController controller, string parameterName, AnimatorControllerParameterType type)
+    {
+        foreach (var parameter in controller.parameters)
+        {
+            if (parameter.name == parameterName)
+                return;
+        }
+
+        controller.AddParameter(parameterName, type);
+    }
+
+    static AnimatorState FindState(AnimatorStateMachine machine, string stateName)
+    {
+        foreach (var child in machine.states)
+        {
+            if (child.state.name == stateName)
+                return child.state;
+        }
+
+        throw new FileNotFoundException("Animator state was not found: " + stateName);
+    }
+
+    static void RemoveAirState(AnimatorStateMachine machine, string stateName)
+    {
+        AnimatorState found = null;
+        foreach (var child in machine.states)
+        {
+            if (child.state.name == stateName)
+                found = child.state;
+        }
+
+        if (found == null)
+            return;
+
+        foreach (var child in machine.states)
+        {
+            var transitions = child.state.transitions;
+            for (int i = transitions.Length - 1; i >= 0; i--)
+            {
+                if (transitions[i].destinationState == found)
+                    child.state.RemoveTransition(transitions[i]);
+            }
+        }
+
+        machine.RemoveState(found);
+    }
+
+    static void AddTrigger(AnimatorState from, AnimatorState to, string parameterName, float duration)
+    {
+        var transition = from.AddTransition(to);
+        transition.hasExitTime = false;
+        transition.hasFixedDuration = true;
+        transition.duration = duration;
+        transition.offset = 0f;
+        transition.canTransitionToSelf = false;
+        transition.AddCondition(AnimatorConditionMode.If, 0f, parameterName);
+    }
+
+    static void AddBool(AnimatorState from, AnimatorState to, string parameterName, bool on, float duration, bool exit, float exitTime)
+    {
+        var transition = from.AddTransition(to);
+        transition.hasExitTime = exit;
+        transition.exitTime = exitTime;
+        transition.hasFixedDuration = true;
+        transition.duration = duration;
+        transition.offset = 0f;
+        transition.canTransitionToSelf = false;
+        transition.AddCondition(on ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot, 0f, parameterName);
+    }
+
+    static void AddExit(AnimatorState from, AnimatorState to, float exitTime, float duration)
+    {
+        var transition = from.AddTransition(to);
+        transition.hasExitTime = true;
+        transition.exitTime = exitTime;
+        transition.hasFixedDuration = true;
+        transition.duration = duration;
+        transition.offset = 0f;
+        transition.canTransitionToSelf = false;
+    }
+
+    static AnimationClip FindClip(string path, string clipName)
+    {
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+        {
+            if (asset is AnimationClip clip && clip.name == clipName)
+                return clip;
+        }
+
+        throw new FileNotFoundException(clipName + " was not found in " + path);
+    }
+
+    public static string SmoothJump()
+    {
+        GroundAirClips();
+
+        var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+        EnsureParameter(controller, "AirRate", AnimatorControllerParameterType.Float);
+        var parameters = controller.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].name == "AirRate")
+                parameters[i].defaultFloat = 1f;
+        }
+
+        controller.parameters = parameters;
+
+        var jump = FindState(controller.layers[0].stateMachine, "Jump");
+        var transitions = jump.transitions;
+        for (int i = transitions.Length - 1; i >= 0; i--)
+            jump.RemoveTransition(transitions[i]);
+
+        jump.motion = FindClip(JumpPath, "Arc");
+        jump.speed = 1f;
+        jump.speedParameter = "AirRate";
+        jump.speedParameterActive = true;
+
+        EditorUtility.SetDirty(controller);
+        AssetDatabase.SaveAssets();
+        return ProbeFeet();
+    }
+
+    static void GroundAirClips()
+    {
+        var jumpImporter = (ModelImporter)AssetImporter.GetAtPath(JumpPath);
+        var clips = jumpImporter.clipAnimations;
+        bool hasArc = false;
+        var next = new ModelImporterClipAnimation[clips.Length + 1];
+        int count = 0;
+        for (int i = 0; i < clips.Length; i++)
+        {
+            if (clips[i].name == "Arc")
+            {
+                hasArc = true;
+                next[count++] = Slice(clips[i], "Arc", 0, 113, false, ClipId(clips[i]));
+                continue;
+            }
+
+            next[count++] = Slice(clips[i], clips[i].name, (int)clips[i].firstFrame, (int)clips[i].lastFrame, clips[i].loopTime, ClipId(clips[i]));
+        }
+
+        if (!hasArc)
+            next[count++] = Slice(clips[0], "Arc", 0, 113, false, 5918273645019283746L);
+
+        if (count != next.Length)
+        {
+            var trimmed = new ModelImporterClipAnimation[count];
+            for (int i = 0; i < count; i++)
+                trimmed[i] = next[i];
+            next = trimmed;
+        }
+
+        jumpImporter.clipAnimations = next;
+        jumpImporter.SaveAndReimport();
+
+        var fallImporter = (ModelImporter)AssetImporter.GetAtPath(FallPath);
+        var fallClips = fallImporter.clipAnimations;
+        fallClips[0] = Slice(fallClips[0], "Falling Idle", (int)fallClips[0].firstFrame, (int)fallClips[0].lastFrame, true, ClipId(fallClips[0]));
+        fallImporter.clipAnimations = fallClips;
+        fallImporter.SaveAndReimport();
+    }
+
+    public static string SoleGap()
+    {
+        var root = new GameObject("sole-probe");
+        Mesh baked = null;
+        try
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+            var model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+            model.transform.localPosition = new Vector3(0f, 0.106f, 0f);
+            model.transform.localScale = Vector3.one * 0.887f;
+
+            var animator = model.GetComponentInChildren<Animator>();
+            animator.runtimeAnimatorController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ControllerPath);
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.Update(0f);
+
+            var report = new System.Text.StringBuilder();
+            ReportSole(animator, "Locomotion", 0f, 0f, report);
+            ReportSole(animator, "Locomotion", 0.25f, 1.5f, report);
+            ReportSole(animator, "Locomotion", 0.5f, 4.5f, report);
+            ReportSole(animator, "Crouch", 0f, 0f, report);
+            return report.ToString();
+        }
+        finally
+        {
+            if (baked != null)
+                UnityEngine.Object.DestroyImmediate(baked);
+            UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
+    static void ReportSole(Animator animator, string stateName, float normalizedTime, float speed, System.Text.StringBuilder report)
+    {
+        animator.SetFloat("Speed", speed);
+        animator.SetFloat("Rate", 1f);
+        animator.SetBool("Crouch", stateName == "Crouch");
+        animator.Play(stateName, 0, normalizedTime);
+        animator.Update(0f);
+
+        float min = float.MaxValue;
+        var skins = animator.GetComponentsInChildren<SkinnedMeshRenderer>();
+        var baked = new Mesh();
+        for (int s = 0; s < skins.Length; s++)
+        {
+            if (!skins[s].enabled || skins[s].sharedMesh == null)
+                continue;
+
+            baked.Clear();
+            skins[s].BakeMesh(baked);
+            var vertices = baked.vertices;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                float y = skins[s].transform.TransformPoint(vertices[i]).y;
+                if (y < min)
+                    min = y;
+            }
+        }
+
+        UnityEngine.Object.DestroyImmediate(baked);
+        report.Append(stateName).Append(" t=").Append(normalizedTime.ToString("0.00"))
+            .Append(" speed=").Append(speed.ToString("0.0"))
+            .Append(" sole=").Append(min.ToString("0.000")).Append(" | ");
+    }
+
+    public static string ProbeFeet()
+    {
+        var root = new GameObject("feet-probe");
+        try
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+            var model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+            model.transform.localPosition = new Vector3(0f, 0.106f, 0f);
+            model.transform.localScale = Vector3.one * 0.887f;
+
+            var animator = model.GetComponentInChildren<Animator>();
+            animator.runtimeAnimatorController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ControllerPath);
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.SetFloat("Speed", 0f);
+            animator.Update(0f);
+
+            var report = new System.Text.StringBuilder();
+            SampleSole(animator, "Locomotion", 0f, report);
+            SampleSole(animator, "Jump", 0f, report);
+            SampleSole(animator, "Jump", 0.44f, report);
+            SampleSole(animator, "Jump", 0.65f, report);
+            SampleSole(animator, "Jump", 0.85f, report);
+            SampleSole(animator, "Falling Idle", 0.3f, report);
+            SampleSole(animator, "Land", 0.05f, report);
+            SampleSole(animator, "Land", 0.25f, report);
+            return report.ToString();
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
+    }
+
+    static void SampleSole(Animator animator, string stateName, float normalizedTime, System.Text.StringBuilder report)
+    {
+        animator.Play(stateName, 0, normalizedTime);
+        animator.Update(0f);
+
+        float sole = float.MaxValue;
+        var renderers = animator.GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (!renderers[i].enabled)
+                continue;
+            if (renderers[i].bounds.min.y < sole)
+                sole = renderers[i].bounds.min.y;
+        }
+
+        float foot = float.MaxValue;
+        var transforms = animator.GetComponentsInChildren<Transform>();
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            string bone = transforms[i].name;
+            if (bone != "LeftFoot" && bone != "RightFoot" && bone != "LeftToeBase" && bone != "RightToeBase")
+                continue;
+            if (transforms[i].position.y < foot)
+                foot = transforms[i].position.y;
+        }
+
+        report.Append(stateName).Append("@").Append(normalizedTime.ToString("0.00"))
+            .Append(" mesh=").Append(sole.ToString("0.000"))
+            .Append(" foot=").Append(foot.ToString("0.000")).Append(" | ");
+    }
+
+    public static string DescribeAir()
+    {
+        var report = new System.Text.StringBuilder();
+        DescribeFile(JumpPath, report);
+        DescribeFile(FallPath, report);
+        return report.ToString();
+    }
+
+    static void DescribeFile(string path, System.Text.StringBuilder report)
+    {
+        var assets = AssetDatabase.LoadAllAssetsAtPath(path);
+        foreach (var asset in assets)
+        {
+            if (asset is not AnimationClip clip || clip.name.StartsWith("__preview__"))
+                continue;
+
+            report.Append(clip.name)
+                .Append(" len=").Append(clip.length.ToString("0.00"))
+                .Append(" fps=").Append(clip.frameRate.ToString("0"))
+                .Append(" loop=").Append(clip.isLooping ? 1 : 0)
+                .Append(" ");
+            AppendHeight(clip, report);
+            report.Append(" | ");
+        }
+    }
+
+    static void AppendHeight(AnimationClip clip, System.Text.StringBuilder report)
+    {
+        EditorCurveBinding? match = null;
+        foreach (var binding in AnimationUtility.GetCurveBindings(clip))
+        {
+            if (binding.propertyName != "RootT.y"
+                && binding.propertyName != "m_LocalPosition.y")
+                continue;
+
+            if (binding.propertyName == "RootT.y"
+                || binding.path.EndsWith("Hips")
+                || binding.path.Length == 0)
+            {
+                match = binding;
+                if (binding.propertyName == "RootT.y")
+                    break;
+            }
+        }
+
+        if (match == null)
+        {
+            report.Append("no-y");
+            return;
+        }
+
+        var height = match.Value;
+        var curve = AnimationUtility.GetEditorCurve(clip, height);
+        report.Append(height.path).Append(":").Append(height.propertyName).Append(" ");
+        if (curve == null)
+            return;
+
+        float min = float.MaxValue;
+        float max = float.MinValue;
+        for (float time = 0f; time <= clip.length + 0.001f; time += 0.1f)
+        {
+            float value = curve.Evaluate(Mathf.Min(time, clip.length));
+            if (value < min)
+                min = value;
+            if (value > max)
+                max = value;
+            report.Append(time.ToString("0.0")).Append("=").Append(value.ToString("0.00")).Append(" ");
+        }
+
+        report.Append("range ").Append(min.ToString("0.00")).Append("..").Append(max.ToString("0.00"));
     }
 
     public static string Rebake()

@@ -272,7 +272,7 @@ MonoBehaviour:
   model: {fileID: 919132149155446097, guid: a11a1e3ccf9543640ac24362e4ed3a13, type: 3}
   controller: {fileID: 9100000, guid: bc14a6fc6c341724fb31864fbda3fd8b, type: 2}
   modelScale: 0.887
-  feetLift: 0.106
+  feetLift: 0
   lookDownShare: 0.4
 --- !u!1 &4659948306774317442
 GameObject:

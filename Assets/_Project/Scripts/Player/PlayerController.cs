@@ -179,6 +179,8 @@ public class PlayerController : MonoBehaviour
     /// <summary>Скорость падения в момент касания земли, м/с. Отрицательная.</summary>
     public event Action<float> Landed;
 
+    public event Action Jumped;
+
     public float ConsumeLandingImpact()
     {
         // Кадр удара забирает покачивание камеры. Шаги слушают Landed и этот вызов не делают.
@@ -596,6 +598,7 @@ public class PlayerController : MonoBehaviour
         _coyoteTimer = 0f;
         _grounded = false;
         _velocity.y = Mathf.Sqrt(jump.height * -2f * jump.gravity); // из высоты, не «сила прыжка»
+        Jumped?.Invoke();
     }
 
     bool CanStandUp()
