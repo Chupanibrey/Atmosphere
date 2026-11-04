@@ -173,9 +173,10 @@ public class PlayerHeadBob : MonoBehaviour
     void UpdateBob(float dt)
     {
         // На вертикальной лестнице горизонтальной скорости нет — берём полный вектор.
-        float speed = _player.IsClimbing ? _player.Velocity.magnitude : _player.PlanarSpeed;
+        bool climbing = _player.IsClimbing;
+        float speed = climbing ? _player.Velocity.magnitude : _player.PlanarSpeed;
         bool moving = speed > settings.minSpeed;
-        bool canBob = moving && (_player.IsGrounded || _player.IsClimbing);
+        bool canBob = moving && (_player.IsGrounded || climbing);
 
         float gaitSpeed = Mathf.Max(0.01f, _player.CurrentGaitSpeed);
         float targetWeight = canBob ? Mathf.InverseLerp(settings.minSpeed, gaitSpeed, speed) : 0f;
@@ -204,15 +205,12 @@ public class PlayerHeadBob : MonoBehaviour
 
         _landingDip = Mathf.MoveTowards(_landingDip, 0f, settings.landingRecover * dt);
 
-        Vector3 walkOffset = EvaluateOffset(profile, _bobPhase) * _bobWeight;
-        // На ходу дыхание гасим, на месте — наоборот.
-        Vector3 idleOffset = EvaluateOffset(idle, _idlePhase) * ((1f - _bobWeight) * settings.idleAmount);
-        Vector3 targetOffset = (walkOffset + idleOffset) * settings.amount;
+        float idleWeight = (1f - _bobWeight) * settings.idleAmount;
+        PoseStep(_bobPhase, profile, out Vector3 walkOffset, out Vector3 walkEuler);
+        PoseStep(_idlePhase, idle, out Vector3 idleOffset, out Vector3 idleEuler);
+        Vector3 targetOffset = (walkOffset * _bobWeight + idleOffset * idleWeight) * settings.amount;
         targetOffset.y -= _landingDip;
-
-        Vector3 walkEuler = EvaluateEuler(profile, _bobPhase) * _bobWeight;
-        Vector3 idleEuler = EvaluateEuler(idle, _idlePhase) * ((1f - _bobWeight) * settings.idleAmount);
-        Vector3 targetEuler = (walkEuler + idleEuler) * settings.amount;
+        Vector3 targetEuler = (walkEuler * _bobWeight + idleEuler * idleWeight) * settings.amount;
 
         float recover = 1f - Mathf.Exp(-settings.returnSpeed * dt); // тот же smoothing, что у приседа
         _bobOffset = Vector3.Lerp(_bobOffset, targetOffset, recover);
@@ -243,19 +241,12 @@ public class PlayerHeadBob : MonoBehaviour
         };
     }
 
-    static Vector3 EvaluateOffset(HeadBobProfile profile, float phase)
+    static void PoseStep(float phase, HeadBobProfile profile, out Vector3 offset, out Vector3 euler)
     {
-        float vertical = Mathf.Sin(phase * 2f) * profile.vertical; // два шага на цикл
-        float horizontal = Mathf.Sin(phase) * profile.horizontal;
-        float forward = -Mathf.Abs(Mathf.Sin(phase)) * profile.forward;
-        return new Vector3(horizontal, vertical, forward);
-    }
-
-    static Vector3 EvaluateEuler(HeadBobProfile profile, float phase)
-    {
-        float pitch = -Mathf.Abs(Mathf.Sin(phase)) * profile.pitch;
-        float yaw = Mathf.Sin(phase) * profile.yaw;
-        float roll = -Mathf.Sin(phase) * profile.roll;
-        return new Vector3(pitch, yaw, roll);
+        float side = Mathf.Sin(phase);
+        float absSide = side < 0f ? -side : side;
+        float vertical = Mathf.Sin(phase * 2f); // два шага на цикл
+        offset = new Vector3(side * profile.horizontal, vertical * profile.vertical, -absSide * profile.forward);
+        euler = new Vector3(-absSide * profile.pitch, side * profile.yaw, -side * profile.roll);
     }
 }

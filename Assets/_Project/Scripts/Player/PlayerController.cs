@@ -407,13 +407,14 @@ public class PlayerController : MonoBehaviour
 
         UpdateCrouchState();
 
-        float targetSpeed = GetTargetSpeed(moveInput);
+        float targetSpeed = GetTargetSpeed(moveInput) * (_body != null ? _body.MoveScale : 1f);
         Vector3 wishDir = GetWorldMoveDirection(moveInput);
         float control = _grounded ? 1f : move.airControl;
         Vector3 targetHorizontal = wishDir * targetSpeed;
         Vector3 delta = _horizontalVelocity - targetHorizontal;
         bool slowing = Vector3.Dot(delta, _horizontalVelocity) > 0f;
-        float rate = slowing ? move.deceleration : move.acceleration;
+        float scale = _body != null ? _body.MoveScale : 1f;
+        float rate = scale < 0.99f || slowing ? move.deceleration : move.acceleration;
         _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, targetHorizontal, rate * control * dt);
 
         if (_jumpBufferTimer > 0f && _coyoteTimer > 0f && !_isCrouching)
@@ -589,7 +590,7 @@ public class PlayerController : MonoBehaviour
 
         float delta = hit.point.y - bottom.y;
         if (Mathf.Abs(delta) > 0.001f)
-            transform.position += Vector3.up * (delta + _controller.skinWidth);
+            transform.position += Vector3.up * delta;
     }
 
     void PerformJump()
