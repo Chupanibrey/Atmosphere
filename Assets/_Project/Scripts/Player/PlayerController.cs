@@ -109,6 +109,8 @@ public class PlayerController : MonoBehaviour
     MoveState _state = MoveState.Walking;
     Vector3 _velocity;
     Vector3 _horizontalVelocity;
+    Vector3 _wallBlockDir;
+    bool _blockedByWall;
     Vector3 _planarForward = Vector3.forward;
     Vector3 _planarRight = Vector3.right;
     float _pitch;
@@ -202,6 +204,9 @@ public class PlayerController : MonoBehaviour
         _leanOffset = offset;
         _leanEuler = euler;
     }
+
+    public Vector3 LeanOffset => _leanOffset;
+    public Vector3 LeanEuler => _leanEuler;
 
     void Awake()
     {
@@ -411,6 +416,14 @@ public class PlayerController : MonoBehaviour
         Vector3 wishDir = GetWorldMoveDirection(moveInput);
         float control = _grounded ? 1f : move.airControl;
         Vector3 targetHorizontal = wishDir * targetSpeed;
+        if (_blockedByWall)
+        {
+            if (wishDir.sqrMagnitude < 0.0001f || Vector3.Dot(wishDir.normalized, _wallBlockDir) <= 0.35f)
+                _blockedByWall = false;
+            else
+                targetHorizontal = Vector3.ProjectOnPlane(targetHorizontal, _wallBlockDir);
+        }
+
         Vector3 delta = _horizontalVelocity - targetHorizontal;
         bool slowing = Vector3.Dot(delta, _horizontalVelocity) > 0f;
         float scale = _body != null ? _body.MoveScale : 1f;
@@ -433,7 +446,9 @@ public class PlayerController : MonoBehaviour
         _velocity.x = _horizontalVelocity.x;
         _velocity.z = _horizontalVelocity.z;
 
+        Vector3 positionBeforeMove = transform.position;
         CollisionFlags flags = _controller.Move(_velocity * dt);
+        StopAgainstWall(flags, positionBeforeMove, dt);
         bool rising = _velocity.y > 0.1f;
         _grounded = !rising && ((flags & CollisionFlags.Below) != 0 || ProbeGround());
 
@@ -449,6 +464,46 @@ public class PlayerController : MonoBehaviour
 
         if ((flags & CollisionFlags.Above) != 0 && _velocity.y > 0f)
             _velocity.y = 0f;
+    }
+
+    void StopAgainstWall(CollisionFlags flags, Vector3 positionBeforeMove, float dt)
+    {
+        if (dt < 0.0001f || (flags & CollisionFlags.Sides) == 0)
+        {
+            if (_blockedByWall && dt >= 0.0001f)
+            {
+                Vector3 movedClear = transform.position - positionBeforeMove;
+                movedClear.y = 0f;
+                if (movedClear.magnitude / dt > 0.2f)
+                    _blockedByWall = false;
+            }
+
+            return;
+        }
+
+        float intended = _horizontalVelocity.magnitude;
+        if (intended < 0.2f)
+            return;
+
+        Vector3 moved = transform.position - positionBeforeMove;
+        moved.y = 0f;
+        float actual = moved.magnitude / dt;
+        if (actual >= intended * 0.7f)
+        {
+            _blockedByWall = false;
+            return;
+        }
+
+        // Упор в стену не должен оставлять скорость бега: шаг иначе играется на месте.
+        Vector3 pushDir = _horizontalVelocity / intended;
+        _horizontalVelocity = moved / dt;
+        _velocity.x = _horizontalVelocity.x;
+        _velocity.z = _horizontalVelocity.z;
+        if (actual < 0.25f)
+        {
+            _blockedByWall = true;
+            _wallBlockDir = pushDir;
+        }
     }
 
     void TickClimbing(Vector2 moveInput, float dt)

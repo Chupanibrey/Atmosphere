@@ -248,14 +248,16 @@ public class PlayerBody : MonoBehaviour
         CacheEyes();
 
         float pitch = Mathf.Clamp(_player.Pitch, -75f, 65f);
-        if (Mathf.Abs(pitch) < 0.01f)
-            return;
+        if (Mathf.Abs(pitch) >= 0.01f)
+        {
+            Vector3 right = transform.right;
+            if (_neck != null)
+                _neck.rotation = Quaternion.AngleAxis(pitch * 0.25f, right) * _neck.rotation;
+            if (_head != null)
+                _head.rotation = Quaternion.AngleAxis(pitch * 0.45f, right) * _head.rotation;
+        }
 
-        Vector3 right = transform.right;
-        if (_neck != null)
-            _neck.rotation = Quaternion.AngleAxis(pitch * 0.25f, right) * _neck.rotation;
-        if (_head != null)
-            _head.rotation = Quaternion.AngleAxis(pitch * 0.45f, right) * _head.rotation;
+        ApplyPeekLean();
     }
 
     void ReadLayer()
@@ -459,12 +461,13 @@ public class PlayerBody : MonoBehaviour
         if (steer && speed > 0.2f)
         {
             Vector3 direction = velocity / speed;
-            if (Vector3.Dot(direction, transform.forward) >= -0.2f)
-            {
-                // Полный стрейф на 90° скручивает поясницу. Диагонали хватает меньшего угла.
-                target = Vector3.SignedAngle(transform.forward, direction, Vector3.up);
-                target = Mathf.Clamp(target, -35f, 35f);
-            }
+            // Шаг назад смотрит в −forward. Его тоже доворачиваем к скорости, не разворачивая тело.
+            Vector3 facing = Vector3.Dot(direction, transform.forward) < -0.2f
+                ? -transform.forward
+                : transform.forward;
+            // Полный стрейф на 90° скручивает поясницу. Диагонали хватает меньшего угла.
+            target = Vector3.SignedAngle(facing, direction, Vector3.up);
+            target = Mathf.Clamp(target, -35f, 35f);
         }
 
         _moveYaw = Mathf.SmoothDampAngle(_moveYaw, target, ref _moveYawVelocity, 0.1f);
@@ -480,6 +483,48 @@ public class PlayerBody : MonoBehaviour
             _chest.RotateAround(pivot, Vector3.up, step);
         if (_upperChest != null)
             _upperChest.RotateAround(pivot, Vector3.up, step);
+    }
+
+    void ApplyPeekLean()
+    {
+        if (_player == null)
+            return;
+
+        // Прошлый крен крутил корень сетки, и кроссовки уезжали вместе с ним.
+        if (_character != null)
+            _character.localRotation = Quaternion.identity;
+
+        if (_hips == null)
+            return;
+
+        float side = _player.LeanOffset.x;
+        if (Mathf.Abs(side) < 0.0001f)
+            return;
+
+        float bend = Mathf.Atan2(side, 1.6f) * Mathf.Rad2Deg;
+        Vector3 leftPos = default;
+        Vector3 rightPos = default;
+        Quaternion leftRot = default;
+        Quaternion rightRot = default;
+        if (_leftFoot != null)
+        {
+            leftPos = _leftFoot.position;
+            leftRot = _leftFoot.rotation;
+        }
+
+        if (_rightFoot != null)
+        {
+            rightPos = _rightFoot.position;
+            rightRot = _rightFoot.rotation;
+        }
+
+        _hips.RotateAround(transform.position, transform.forward, bend);
+
+        // Кость стопы возвращаем как была: подошва на полу, голень остаётся наклонённой.
+        if (_leftFoot != null)
+            _leftFoot.SetPositionAndRotation(leftPos, leftRot);
+        if (_rightFoot != null)
+            _rightFoot.SetPositionAndRotation(rightPos, rightRot);
     }
 
     Vector3 FootAim(bool left, Vector3 groundNormal)
