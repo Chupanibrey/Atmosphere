@@ -139,10 +139,10 @@ MonoBehaviour:
     maxPitch: 85
     lockCursorOnStart: 1
   move:
-    walkSpeed: 8
-    sprintSpeed: 16
-    crouchSpeed: 4
-    acceleration: 40
+    walkSpeed: 3
+    sprintSpeed: 5.5
+    crouchSpeed: 1.5
+    acceleration: 15
     airControl: 0.35
   jump:
     height: 2
@@ -164,28 +164,6 @@ MonoBehaviour:
     speed: 4
     strafeSpeed: 1.6
     attachDot: 0.25
---- !u!114 &6238491029384756104
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 42580674678904544}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9d4e8b2c1a0f47e3b5c6d7e8f9012345, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerLean
-  settings:
-    enabled: 1
-    distance: 0.45
-    height: -0.04
-    roll: 8
-    lerpSpeed: 10
-    wallPadding: 0.08
-    obstructionMask:
-      serializedVersion: 2
-      m_Bits: 4294967295
 --- !u!114 &5128491029384756103
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -250,6 +228,28 @@ MonoBehaviour:
       pitch: 0.06
       yaw: 0.03
       roll: 0.04
+--- !u!114 &6238491029384756104
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 42580674678904544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d4e8b2c1a0f47e3b5c6d7e8f9012345, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerLean
+  settings:
+    enabled: 1
+    distance: 0.45
+    height: -0.04
+    roll: 8
+    lerpSpeed: 10
+    wallPadding: 0.08
+    obstructionMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
 --- !u!1 &1443615857242055665
 GameObject:
   m_ObjectHideFlags: 0
