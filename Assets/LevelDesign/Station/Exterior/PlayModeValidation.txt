@@ -1,0 +1,1 @@
+PASS Play Mode: existing PlayerController driven with W input and scripted heading traversed spawn, checkpoint and station entrance. No controller settings changed.

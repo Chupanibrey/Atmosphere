@@ -1,0 +1,3 @@
+PASS: 707 route samples, floor and 2m capsule clearance; sensor, booth approach and utility entrance clear.
+Existing player repositioned to original exterior spawn; controller settings unchanged.
+Not a Play Mode walkthrough. Original interior and manual laboratory retained in copied scene.
