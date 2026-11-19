@@ -1,0 +1,1 @@
+PASS Corridor exterior perimeter: 732 samples, 0 unprotected edges.

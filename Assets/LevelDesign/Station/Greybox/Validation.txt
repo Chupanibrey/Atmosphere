@@ -1,0 +1,22 @@
+Physics greybox validation (2m capsule, radius .32m, grid .5m). Not a first-person playtest.
+PASS stage=0 room=01 reachable=True expected=True
+PASS stage=0 room=02 reachable=True expected=True
+PASS stage=0 room=13 reachable=True expected=True
+PASS stage=0 room=14 reachable=True expected=True
+PASS stage=0 room=04 reachable=False expected=False
+PASS stage=0 room=05 reachable=False expected=False
+PASS stage=1 room=01 reachable=True expected=True
+PASS stage=1 room=02 reachable=True expected=True
+PASS stage=1 room=13 reachable=True expected=True
+PASS stage=1 room=14 reachable=True expected=True
+PASS stage=1 room=04 reachable=True expected=True
+PASS stage=1 room=05 reachable=False expected=False
+PASS stage=2 room=01 reachable=True expected=True
+PASS stage=2 room=02 reachable=True expected=True
+PASS stage=2 room=13 reachable=True expected=True
+PASS stage=2 room=14 reachable=True expected=True
+PASS stage=2 room=04 reachable=True expected=True
+PASS stage=2 room=05 reachable=True expected=True
+PASS ramp=Mezzanine ground and capsule clearance, 101 samples
+PASS ramp=Pit ground and capsule clearance, 101 samples
+PASS ramp=Level2 descent ground and capsule clearance, 101 samples
