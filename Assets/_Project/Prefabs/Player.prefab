@@ -32,11 +32,7 @@ Transform:
   m_GameObject: {fileID: 996875187828747087}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-<<<<<<< HEAD
   m_LocalPosition: {x: 0, y: 0, z: 0}
-=======
-  m_LocalPosition: {x: 0, y: 1, z: 0}
->>>>>>> origin/Level1
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -62,19 +58,11 @@ CharacterController:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-<<<<<<< HEAD
   m_Height: 1.8
   m_Radius: 0.3
   m_SlopeLimit: 45
   m_StepOffset: 0.25
   m_SkinWidth: 0.02
-=======
-  m_Height: 2
-  m_Radius: 0.32
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.04
->>>>>>> origin/Level1
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0.9, z: 0}
 --- !u!114 &7687933261054806243
@@ -96,20 +84,12 @@ MonoBehaviour:
     maxPitch: 85
     lockCursorOnStart: 1
   move:
-<<<<<<< HEAD
     walkSpeed: 2.5
     sprintSpeed: 5.5
     crouchSpeed: 1.75
     acceleration: 16
     deceleration: 40
     airControl: 0.15
-=======
-    walkSpeed: 3
-    sprintSpeed: 5.5
-    crouchSpeed: 1.5
-    acceleration: 15
-    airControl: 0.35
->>>>>>> origin/Level1
   jump:
     height: 1
     gravity: -9.81
@@ -121,39 +101,24 @@ MonoBehaviour:
       m_Bits: 4294967295
   crouch:
     toggle: 0
-<<<<<<< HEAD
     standingHeight: 1.8
     height: 1.1
     eyeHeightRatio: 0.97
     standingCameraY: 1.746
     cameraY: 1.067
-=======
-    standingHeight: 2
-    height: 1
-    standingCameraY: 0.7
-    cameraY: -0.15
->>>>>>> origin/Level1
     lerpSpeed: 12
   climb:
     speed: 1.2
     strafeSpeed: 0.6
     attachDot: 0.25
-<<<<<<< HEAD
   bodyVisual: {fileID: 2336057576188549549}
 --- !u!114 &7157966177702710721
-=======
---- !u!114 &5128491029384756103
->>>>>>> origin/Level1
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-<<<<<<< HEAD
   m_GameObject: {fileID: 996875187828747087}
-=======
-  m_GameObject: {fileID: 42580674678904544}
->>>>>>> origin/Level1
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7c3e9a1f4b2d48e0a6f15c8d2e90b147, type: 3}
@@ -211,21 +176,13 @@ MonoBehaviour:
       pitch: 0.06
       yaw: 0.03
       roll: 0.04
-<<<<<<< HEAD
 --- !u!114 &746484667693946977
-=======
---- !u!114 &6238491029384756104
->>>>>>> origin/Level1
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-<<<<<<< HEAD
   m_GameObject: {fileID: 996875187828747087}
-=======
-  m_GameObject: {fileID: 42580674678904544}
->>>>>>> origin/Level1
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9d4e8b2c1a0f47e3b5c6d7e8f9012345, type: 3}
@@ -233,21 +190,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerLean
   settings:
     enabled: 1
-<<<<<<< HEAD
     distance: 0.28
     height: -0.04
     roll: 6
-=======
-    distance: 0.45
-    height: -0.04
-    roll: 8
->>>>>>> origin/Level1
     lerpSpeed: 10
     wallPadding: 0.08
     obstructionMask:
       serializedVersion: 2
       m_Bits: 4294967295
-<<<<<<< HEAD
 --- !u!114 &8123456789012345671
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -325,9 +275,6 @@ MonoBehaviour:
   feetLift: 0
   lookDownShare: 0.4
 --- !u!1 &4659948306774317442
-=======
---- !u!1 &1443615857242055665
->>>>>>> origin/Level1
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -388,7 +335,7 @@ GameObject:
   m_IsActive: 1
 --- !u!4 &2343994148931117411
 Transform:
-  m_ObjectHideFlags: 0
+  m_ObjectHideFlags:0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
